@@ -1,0 +1,14 @@
+# fork-js:
+#   filter: rjsmin
+#   output: ckanext-fork/%(version)s-fork.js
+#   contents:
+#     - js/fork.js
+#   extra:
+#     preload:
+#       - base/main
+
+# fork-css:
+#   filter: cssrewrite
+#   output: ckanext-fork/%(version)s-fork.css
+#   contents:
+#     - css/fork.css
