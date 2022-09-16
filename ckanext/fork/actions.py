@@ -4,10 +4,12 @@ import ckan.plugins.toolkit as toolkit
 
 @logic.validate(logic.schema.default_autocomplete_schema)
 def resource_autocomplete(context, data_dict):
-    q = data_dict['q']
+    q = toolkit.get_or_bust(data_dict, 'q')
     q_lower = q.lower()
-    data_dict['rows'] = 10
-    results = toolkit.get_action('package_search')(context, data_dict)['results']
+    results = toolkit.get_action('package_search')(context, {
+        "q": q,
+        "rows": 10
+    })['results']
     pkg_list = []
 
     for package in results:
@@ -23,13 +25,14 @@ def resource_autocomplete(context, data_dict):
                 'match': match
             })
 
-        organization = package.get('organization', {}).get('title')
+        organization = package.get('organization')
+        organization_title = organization['title'] if organization else ""
         match = q_lower in package['name'].lower() or q_lower in package['title'].lower()
         pkg_list.append({
             'id': package['id'],
             'name': package['name'],
             'title': package['title'],
-            'owner_org': organization,
+            'owner_org': organization_title,
             'match': match,
             'resources': resources
         })
