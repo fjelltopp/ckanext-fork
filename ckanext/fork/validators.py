@@ -1,4 +1,5 @@
 import ckan.plugins.toolkit as toolkit
+from ckanext.fork.util import parse_fork
 
 
 def valid_fork(key, data, errors, context):
@@ -11,12 +12,7 @@ def valid_fork(key, data, errors, context):
     if not value:
         return
 
-    if "@" in value:
-        resource_id = value.split("@")[0]
-        activity_id = value.split("@")[-1]
-    else:
-        resource_id = value
-        activity_id = None
+    resource_id, activity_id = parse_fork(value)
 
     try:
         toolkit.get_action('resource_show')(context, {'id': resource_id})
