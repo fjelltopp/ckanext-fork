@@ -66,6 +66,6 @@ def package_show(next_action, context, data_dict):
                 "dataset_id": forked_dataset["id"],
                 "dataset_title": forked_dataset["title"],
                 "activity_id": forked_activity_id,
-                "synced": forked_resource == resource
+                "synced": forked_resource["sha256"] == resource["sha256"]
             }
     return dataset
