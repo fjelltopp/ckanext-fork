@@ -50,7 +50,10 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
     # IActions
     def get_actions(self):
         return {
-            'resource_autocomplete': fork_actions.resource_autocomplete
+            'resource_autocomplete': fork_actions.resource_autocomplete,
+            'package_show': fork_actions.package_show,
+            'package_create': fork_actions.package_create_update,
+            'package_update': fork_actions.package_create_update
         }
 
     # IValidators

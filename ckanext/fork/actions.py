@@ -45,7 +45,7 @@ def resource_autocomplete(context, data_dict):
 def package_create_update(next_action, context, data_dict):
     for resource in data_dict.get("resources", []):
         if resource.get("fork"):
-            resource = util.blob_storage_duplicate_resource(context, data_dict)
+            resource = util.blob_storage_duplicate_resource(context, resource)
     return next_action(context, data_dict)
 
 
@@ -55,17 +55,17 @@ def package_show(next_action, context, data_dict):
     for resource in dataset["resources"]:
         if resource.get("fork"):
             forked_resource_id, forked_activity_id = util.parse_fork(resource["fork"])
-            forked_resource, forked_dataset = util.get_forked_data(
+            forked_data = util.get_forked_data(
                 context,
                 forked_resource_id,
                 forked_activity_id
             )
             resource["forked_resource"] = {
                 "resource_id": forked_resource_id,
-                "resource_name": forked_resource["name"],
-                "dataset_id": forked_dataset["id"],
-                "dataset_title": forked_dataset["title"],
-                "activity_id": forked_activity_id,
-                "synced": forked_resource["sha256"] == resource["sha256"]
+                "resource_name": forked_data["resource"]["name"],
+                "dataset_id": forked_data["dataset"]["id"],
+                "dataset_title": forked_data["dataset"]["title"],
+                "activity_id": forked_data["activity_id"],
+                "synced": util.is_synced_fork(context, resource)
             }
     return dataset
