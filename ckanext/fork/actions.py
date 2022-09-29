@@ -1,5 +1,6 @@
 import ckan.logic as logic
 import ckan.plugins.toolkit as toolkit
+import ckanext.fork.util as util
 
 
 @logic.validate(logic.schema.default_autocomplete_schema)
@@ -38,3 +39,33 @@ def resource_autocomplete(context, data_dict):
         })
 
     return pkg_list
+
+
+@toolkit.chained_action
+def package_create_update(next_action, context, data_dict):
+    for resource in data_dict.get("resources", []):
+        if resource.get("fork"):
+            resource = util.blob_storage_duplicate_resource(context, resource)
+    return next_action(context, data_dict)
+
+
+@toolkit.chained_action
+def package_show(next_action, context, data_dict):
+    dataset = next_action(context, data_dict)
+    for resource in dataset["resources"]:
+        if resource.get("fork"):
+            forked_resource_id, forked_activity_id = util.parse_fork(resource["fork"])
+            forked_data = util.get_forked_data(
+                context,
+                forked_resource_id,
+                forked_activity_id
+            )
+            resource["forked_resource"] = {
+                "resource_id": forked_resource_id,
+                "resource_name": forked_data["resource"]["name"],
+                "dataset_id": forked_data["dataset"]["id"],
+                "dataset_title": forked_data["dataset"]["title"],
+                "activity_id": forked_data["activity_id"],
+                "synced": util.is_synced_fork(context, resource)
+            }
+    return dataset
