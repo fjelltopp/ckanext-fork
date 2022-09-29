@@ -105,10 +105,10 @@ class TestPackageShow():
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
-            fork=forked_data['resource']['id']
+            fork_resource=forked_data['resource']['id']
         )
         response = call_action('resource_show', id=resource['id'])
-        assert response['forked_resource'] == {
+        assert response['fork_metadata'] == {
             'resource_id': forked_data['resource']['id'],
             'resource_name': forked_data['resource']['name'],
             'dataset_id': forked_data['dataset']['id'],
@@ -122,10 +122,11 @@ class TestPackageShow():
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
-            fork=f"{forked_data['resource']['id']}@{forked_data['activity_id']}"
+            fork_resource=forked_data['resource']['id'],
+            fork_activity=forked_data['activity_id']
         )
         response = call_action('resource_show', id=resource['id'])
-        assert not response['forked_resource']['synced']
+        assert not response['fork_metadata']['synced']
 
 
 @pytest.mark.usefixtures('clean_db')
@@ -136,10 +137,9 @@ class TestPackageCreate():
         resource = call_action(
             "resource_create",
             package_id=dataset['id'],
-            fork=forked_data['resource']['id']
+            fork_resource=forked_data['resource']['id']
         )
-        expected_fork = f"{forked_data['resource']['id']}@{forked_data['activity_id']}"
-        assert resource['fork'] == expected_fork
+        assert resource['fork_activity'] == forked_data['activity_id']
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]
 
@@ -149,10 +149,9 @@ class TestPackageCreate():
         resource = call_action(
             "resource_create",
             package_id=dataset['id'],
-            fork=f"{forked_data['resource']['id']}@{forked_data['activity_id']}"
+            fork_resource=forked_data['resource']['id'],
+            fork_activity=forked_data['activity_id']
         )
-        expected_fork = f"{forked_data['resource']['id']}@{forked_data['activity_id']}"
-        assert resource['fork'] == expected_fork
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]
 
@@ -164,7 +163,7 @@ class TestPackageUpdate():
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
-            fork=forked_data['resource']['id']
+            fork_resource=forked_data['resource']['id']
         )
         forked_data['resource'] = call_action(
             'resource_patch',
@@ -178,10 +177,9 @@ class TestPackageUpdate():
         resource = call_action(
             "resource_update",
             id=resource['id'],
-            fork=forked_data['resource']['id']
+            fork_resource=forked_data['resource']['id']
         )
-        expected_fork = f"{forked_data['resource']['id']}@{forked_data['activity_id']}"
-        assert resource['fork'] == expected_fork
+        assert resource['fork_activity'] == forked_data['activity_id']
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]
 
@@ -190,20 +188,20 @@ class TestPackageUpdate():
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
-            fork=forked_data['resource']['id']
+            fork_resource=forked_data['resource']['id']
         )
         resource = call_action(
             "resource_update",
             id=resource['id'],
-            fork=f"{forked_data['resource']['id']}@{forked_data['activity_id']}"
+            fork_resource=forked_data['resource']['id'],
+            fork_activity=forked_data['activity_id']
         )
         resource = factories.Resource(package_id=dataset['id'])
         resource = call_action(
             "resource_update",
             id=resource['id'],
-            fork=f"{forked_data['resource']['id']}@{forked_data['activity_id']}"
+            fork_resource=forked_data['resource']['id'],
+            fork_activity=forked_data['activity_id']
         )
-        expected_fork = f"{forked_data['resource']['id']}@{forked_data['activity_id']}"
-        assert resource['fork'] == expected_fork
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]

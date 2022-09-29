@@ -20,9 +20,13 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
     def create_package_schema(self):
         schema = super(ForkPlugin, self).create_package_schema()
         schema['resources'].update({
-            'fork': [
+            'fork_resource': [
                 toolkit.get_validator('ignore_missing'),
-                toolkit.get_validator('valid_fork'),
+                toolkit.get_validator('valid_fork_resource'),
+            ],
+            'fork_activity': [
+                toolkit.get_validator('ignore_missing'),
+                toolkit.get_validator('valid_fork_activity'),
             ]
         })
         return schema
@@ -30,9 +34,13 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
     def update_package_schema(self):
         schema = super(ForkPlugin, self).update_package_schema()
         schema['resources'].update({
-            'fork': [
+            'fork_resource': [
                 toolkit.get_validator('ignore_missing'),
-                toolkit.get_validator('valid_fork')
+                toolkit.get_validator('valid_fork_resource'),
+            ],
+            'fork_activity': [
+                toolkit.get_validator('ignore_missing'),
+                toolkit.get_validator('valid_fork_activity'),
             ]
         })
         return schema
@@ -59,5 +67,6 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
     # IValidators
     def get_validators(self):
         return {
-            'valid_fork': fork_validators.valid_fork
+            'valid_fork_resource': fork_validators.valid_fork_resource,
+            'valid_fork_activity': fork_validators.valid_fork_activity
         }
