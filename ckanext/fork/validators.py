@@ -1,30 +1,36 @@
 import ckan.plugins.toolkit as toolkit
-from ckanext.fork.util import parse_fork
 
 
-def valid_fork(key, data, errors, context):
-    """
-    Make sure an field is a valid organization_id
-    """
+def valid_fork_resource(key, data, errors, context):
 
     value = data[key]
 
     if not value:
         return
 
-    resource_id, activity_id = parse_fork(value)
+    try:
+        toolkit.get_action('resource_show')(context, {'id': value})
+    except toolkit.ObjectNotFound:
+        raise toolkit.Invalid(toolkit._(f'Resource {value} does not exist'))
+
+
+def valid_fork_activity(key, data, errors, context):
+
+    value = data[key]
+
+    if not value:
+        return
+
+    resource_key = key[:-1] + ('fork_resource',)
+
+    if not data.get(resource_key):
+        raise toolkit.Invalid(toolkit._("fork_resource not specified"))
 
     try:
-        toolkit.get_action('resource_show')(context, {'id': resource_id})
+        toolkit.get_action('activity_show')(context, {
+            'id': value,
+            'include_data': False
+        })
     except toolkit.ObjectNotFound:
-        raise toolkit.Invalid(toolkit._(f'Resource {resource_id} does not exist'))
+        raise toolkit.Invalid(toolkit._(f'Activity {value} does not exist'))
 
-    if activity_id:
-
-        try:
-            toolkit.get_action('activity_show')(context, {
-                'id': activity_id,
-                'include_data': False
-            })
-        except toolkit.ObjectNotFound:
-            raise toolkit.Invalid(toolkit._(f'Resource {activity_id} does not exist'))
