@@ -27,11 +27,13 @@ def datasets(reset_db, reset_index):
         name=f"test-dataset-{i:02d}",
         owner_org=organization['id']
     ) for i in range(3)]
+
     for (d, dataset) in enumerate(datasets):
         dataset["resources"] = [factories.Resource(
             name=f"Test Resource {(d*3)+r:02d}",
             package_id=dataset['id']
         ) for r in range(3)]
+
     return datasets
 
 
@@ -55,6 +57,7 @@ class TestResourceAutocomplete():
     def test_resource_autocomplete_output_format(self, datasets):
         result = call_action('resource_autocomplete', q="Test Resource 08")
         assert type(result) == list
+
         for dataset in result:
             assert set(dataset.keys()) == {
                 'id',
@@ -64,6 +67,7 @@ class TestResourceAutocomplete():
                 'match',
                 'resources'
             }
+
             for resource in dataset['resources']:
                 assert set(resource.keys()) == {
                     'id',
@@ -71,31 +75,6 @@ class TestResourceAutocomplete():
                     'match',
                     'last_modified'
                 }
-
-
-@pytest.fixture
-def forked_data():
-    giftless_metadata = {
-        "sha256": "dummysha",
-        "size": 999,
-        "lfs_prefix": "test/resource",
-        "url_type": "upload"
-    }
-    forked_dataset = factories.Dataset()
-    forked_resource = factories.Resource(
-        package_id=forked_dataset['id'],
-        **giftless_metadata
-    )
-    call_action('package_patch', id=forked_dataset['id'], notes='An activity')
-    forked_activity_id = call_action(
-        'package_activity_list',
-        id=forked_dataset['id']
-    )[0]['id']
-    return {
-        'dataset': forked_dataset,
-        'resource': forked_resource,
-        'activity_id': forked_activity_id
-    }
 
 
 @pytest.mark.usefixtures('clean_db')
@@ -108,14 +87,7 @@ class TestPackageShow():
             fork_resource=forked_data['resource']['id']
         )
         response = call_action('resource_show', id=resource['id'])
-        assert response['fork_metadata'] == {
-            'resource_id': forked_data['resource']['id'],
-            'resource_name': forked_data['resource']['name'],
-            'dataset_id': forked_data['dataset']['id'],
-            'dataset_title': forked_data['dataset']['title'],
-            'activity_id': forked_data['activity_id'],
-            'synced': True
-        }
+        assert response['fork_synced']
 
     def test_unsynced_fork(self, forked_data):
         call_action('resource_patch', id=forked_data['resource']['id'], sha256='newsha')
@@ -126,7 +98,7 @@ class TestPackageShow():
             fork_activity=forked_data['activity_id']
         )
         response = call_action('resource_show', id=resource['id'])
-        assert not response['fork_metadata']['synced']
+        assert not response['fork_synced']
 
 
 @pytest.mark.usefixtures('clean_db')
@@ -140,6 +112,7 @@ class TestPackageCreate():
             fork_resource=forked_data['resource']['id']
         )
         assert resource['fork_activity'] == forked_data['activity_id']
+
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]
 
@@ -152,6 +125,7 @@ class TestPackageCreate():
             fork_resource=forked_data['resource']['id'],
             fork_activity=forked_data['activity_id']
         )
+
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]
 
@@ -180,6 +154,7 @@ class TestPackageUpdate():
             fork_resource=forked_data['resource']['id']
         )
         assert resource['fork_activity'] == forked_data['activity_id']
+
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]
 
@@ -203,5 +178,6 @@ class TestPackageUpdate():
             fork_resource=forked_data['resource']['id'],
             fork_activity=forked_data['activity_id']
         )
+
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]

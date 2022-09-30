@@ -43,31 +43,23 @@ def resource_autocomplete(context, data_dict):
 
 @toolkit.chained_action
 def package_create_update(next_action, context, data_dict):
+
     for resource in data_dict.get("resources", []):
+
         if resource.get("fork_resource"):
             resource = util.blob_storage_fork_resource(context, resource)
+
     return next_action(context, data_dict)
 
 
 @toolkit.chained_action
 def package_show(next_action, context, data_dict):
     dataset = next_action(context, data_dict)
-    for resource in dataset["resources"]:
+
+    for resource in dataset.get("resources", []):
+
         if resource.get("fork_resource"):
-            forked_resource_id = resource.get("fork_resource")
-            forked_activity_id = resource.get("fork_activity")
-            forked_data = util.get_forked_data(
-                context,
-                forked_resource_id,
-                forked_activity_id
-            )
-            resource["fork_metadata"] = {
-                "resource_id": forked_resource_id,
-                "resource_name": forked_data["resource"]["name"],
-                "dataset_id": forked_data["dataset"]["id"],
-                "dataset_title": forked_data["dataset"]["title"],
-                "activity_id": forked_data["activity_id"],
-                "synced": util.is_synced_fork(context, resource)
-            }
+            resource['fork_synced'] = util.is_synced_fork(context, resource)
+
     return dataset
 

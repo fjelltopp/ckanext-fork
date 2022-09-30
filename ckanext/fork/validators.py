@@ -2,7 +2,6 @@ import ckan.plugins.toolkit as toolkit
 
 
 def valid_fork_resource(key, data, errors, context):
-
     value = data[key]
 
     if not value:
@@ -15,7 +14,6 @@ def valid_fork_resource(key, data, errors, context):
 
 
 def valid_fork_activity(key, data, errors, context):
-
     value = data[key]
 
     if not value:
