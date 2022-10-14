@@ -18,32 +18,55 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
 
     # IDatasetForm
     def create_package_schema(self):
-        schema = super(ForkPlugin, self).create_package_schema()
-        schema['resources'].update({
-            'fork_resource': [
+        schema = super(ForkPlugin, self).update_package_schema()
+        schema.update({
+            'fork_dataset': [
                 toolkit.get_validator('ignore_missing'),
-                toolkit.get_validator('valid_fork_resource'),
+                toolkit.get_validator('valid_dataset_id')
             ],
             'fork_activity': [
                 toolkit.get_validator('ignore_missing'),
-                toolkit.get_validator('valid_fork_activity'),
+                toolkit.get_validator('valid_activity_id'),
+                toolkit.get_validator('check_forked_object')
             ]
         })
-        return schema
+        schema['resources'].update({
+            'fork_resource': [
+                toolkit.get_validator('ignore_missing'),
+                toolkit.get_validator('valid_resource_id'),
+            ],
+            'fork_activity': [
+                toolkit.get_validator('ignore_missing'),
+                toolkit.get_validator('valid_activity_id'),
+                toolkit.get_validator('check_forked_object')
+            ]
+        })
+        return schema()
 
     def update_package_schema(self):
         schema = super(ForkPlugin, self).update_package_schema()
-        schema['resources'].update({
-            'fork_resource': [
+        schema.update({
+            'fork_dataset': [
                 toolkit.get_validator('ignore_missing'),
-                toolkit.get_validator('valid_fork_resource'),
+                toolkit.get_validator('dataset_field_not_changed')
             ],
             'fork_activity': [
                 toolkit.get_validator('ignore_missing'),
-                toolkit.get_validator('valid_fork_activity'),
+                toolkit.get_validator('dataset_field_not_changed')
             ]
         })
-        return schema
+        schema['resources'].update({
+            'fork_resource': [
+                toolkit.get_validator('ignore_missing'),
+                toolkit.get_validator('valid_resource_id'),
+            ],
+            'fork_activity': [
+                toolkit.get_validator('ignore_missing'),
+                toolkit.get_validator('valid_activity_id'),
+                toolkit.get_validator('check_forked_object')
+            ]
+        })
+        return schema()
 
     def is_fallback(self):
         # Return True to register this plugin as the default handler for
@@ -61,12 +84,16 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
             'resource_autocomplete': fork_actions.resource_autocomplete,
             'package_show': fork_actions.package_show,
             'package_create': fork_actions.package_create_update,
-            'package_update': fork_actions.package_create_update
+            'package_update': fork_actions.package_create_update,
+            'dataset_fork': fork_actions.dataset_fork
         }
 
     # IValidators
     def get_validators(self):
         return {
-            'valid_fork_resource': fork_validators.valid_fork_resource,
-            'valid_fork_activity': fork_validators.valid_fork_activity
+            'valid_resource_id': fork_validators.valid_resource_id,
+            'valid_dataset_id': fork_validators.valid_dataset_id,
+            'valid_activity_id': fork_validators.valid_activity_id,
+            'check_forked_object': fork_validators.check_forked_object,
+            'dataset_field_not_changed': fork_validators.dataset_field_not_changed
         }

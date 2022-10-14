@@ -37,6 +37,22 @@ def datasets(reset_db, reset_index):
     return datasets
 
 
+@pytest.fixture
+def dataset():
+    org = factories.Organization()
+    dataset = factories.Dataset(
+        type='auto-generate-name-from-title',
+        id="test-id",
+        owner_org=org['id']
+    )
+    resources = []
+    for i in range(3):
+        resources.append(factories.Resource(package_id=dataset['id']))
+    call_action('package_update', id=dataset['id'], notes="Create an activity")
+    return call_action('package_show', id=dataset['id'])
+
+
+
 @pytest.mark.usefixtures('with_request_context')
 class TestResourceAutocomplete():
 
@@ -181,3 +197,65 @@ class TestPackageUpdate():
 
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]
+
+
+@pytest.mark.usefixtures('clean_db', 'with_plugins')
+class TestDatasetFork():
+
+    def test_dataset_metadata_duplicated(self, dataset):
+        result = call_action(
+            'dataset_fork',
+            id=dataset['id'],
+            name="duplicated-dataset"
+        )
+        fields = ['title', 'notes', 'private', 'num_resources']
+        duplicated = [result[field] == dataset[field] for field in fields]
+        assert all(duplicated), f"Duplication failed: {zip(fields, duplicated)}"
+
+    def test_dataset_metadata_not_duplicated(self, dataset):
+        result = call_action(
+            'dataset_fork',
+            id=dataset['id'],
+            name="duplicated-dataset"
+        )
+        fields = ['name', 'id']
+        not_duplicated = [result[field] != dataset[field] for field in fields]
+        assert all(not_duplicated), f"Duplication occured: {zip(fields, not_duplicated)}"
+
+    def test_resource_metadata_duplicated(self, dataset):
+        result = call_action(
+            'dataset_fork',
+            id=dataset['id'],
+            name="duplicated-dataset"
+        )
+        assert len(dataset['resources']) == len(result['resources'])
+        fields = ['name']
+
+        for i in range(len(dataset['resources'])):
+            for f in fields:
+                duplicated = dataset['resources'][i][f] == result['resources'][i][f]
+                assert duplicated, f"Field {f} did not duplicate for resource {i}"
+
+    def test_dataset_not_found(self):
+        with pytest.raises(toolkit.ObjectNotFound):
+            call_action(
+                'dataset_fork',
+                id='non-existant-id',
+                name="duplicated-dataset"
+            )
+
+    @pytest.mark.parametrize('key, value', [
+        ('notes', 'Some new notes'),
+        ('title', 'A new title'),
+        ('private', True),
+        ('resources', [])
+    ])
+    def test_metadata_overidden(self, key, value, dataset):
+        data_dict = {
+            'id': dataset['id'],
+            'name': "duplicated-dataset",
+            key: value
+        }
+        result = call_action('dataset_fork', **data_dict)
+        assert result[key] == value
+

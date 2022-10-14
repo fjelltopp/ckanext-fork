@@ -1,6 +1,37 @@
 import ckan.logic as logic
 import ckan.plugins.toolkit as toolkit
 import ckanext.fork.util as util
+import logging
+
+log = logging.getLogger(__name__)
+
+
+def dataset_fork(context, data_dict):
+    dataset_id_or_name = toolkit.get_or_bust(data_dict, 'id')
+    dataset = toolkit.get_action('package_show')(context, {'id': dataset_id_or_name})
+    dataset_id = dataset['id']
+
+    data_dict['fork_dataset'] = dataset_id
+    data_dict['fork_activity'] = toolkit.get_action('package_activity_list')(
+        context,
+        {'id': dataset_id}
+    )[0]['id']
+
+    dataset.pop('id', None)
+    dataset.pop('name', None)
+    data_dict.pop('id', None)
+    context.pop('package', None)
+
+    dataset = {**dataset, **data_dict}
+
+    for resource in dataset.get('resources', []):
+        del resource['id']
+        del resource['package_id']
+
+    new_dataset = toolkit.get_action('package_create')(context, dataset)
+
+    return toolkit.get_action('package_show')(context, {'id': new_dataset['id']})
+
 
 
 @logic.validate(logic.schema.default_autocomplete_schema)
@@ -26,8 +57,7 @@ def resource_autocomplete(context, data_dict):
                 'match': match
             })
 
-        organization = package.get('organization')
-        organization_title = organization['title'] if organization else ""
+        organization_title = package.get('organization', {}).get('title', "")
         match = q_lower in package['name'].lower() or q_lower in package['title'].lower()
         pkg_list.append({
             'id': package['id'],
