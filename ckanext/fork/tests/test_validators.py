@@ -3,41 +3,49 @@ from contextlib import nullcontext as does_not_raise
 import ckanext.fork.validators as fork_validators
 import ckan.plugins.toolkit as toolkit
 from ckan.tests import factories
+import mock
 
 
 @pytest.mark.usefixtures('clean_db')
 class TestValidFork():
 
-    @pytest.mark.parametrize("fork_resource, result", [
+    VALID_ID_PARAMS = [
         (None, does_not_raise()),
         ("", does_not_raise()),
-        ("{resource_id}", does_not_raise()),
-        ("bad-resource-id", pytest.raises(toolkit.Invalid))
-    ])
-    def test_valid_fork_resource(self, fork_resource, result):
-        resource = factories.Resource(id="good-resource-id")
+        ("{good_object_id}", does_not_raise()),
+        ("bad-object-id", pytest.raises(toolkit.Invalid))
+    ]
 
-        if fork_resource:
-            fork_resource = fork_resource.format(resource_id=resource['id'])
+    @pytest.mark.parametrize("value, result", VALID_ID_PARAMS)
+    def test_valid_dataset_id(self, value, result):
+        dataset = factories.Dataset()
 
-        key = ('resources', 0, 'fork_resource')
-        flattened_data = {key: fork_resource}
+        if value:
+            value = value.format(good_object_id=dataset['id'])
+
+        key = ('some_key',)
+        flattened_data = {key: value}
 
         with result:
-            fork_validators.valid_fork_resource(key, flattened_data, {}, {'user': 'user'})
+            fork_validators.valid_dataset_id(key, flattened_data, {}, {'user': 'user'})
 
-    @pytest.mark.parametrize("fork_resource, fork_activity, result", [
-        (None, None, does_not_raise()),
-        ("", "", does_not_raise()),
-        ("{resource_id}", "{activity_id}", does_not_raise()),
-        ("{resource_id}", "bad-activity-id", pytest.raises(toolkit.Invalid)),
-        ("bad-resource-id", "{activity_id}", does_not_raise()),
-        ("", "{activity_id}", pytest.raises(toolkit.Invalid)),
-        (None, "{activity_id}", pytest.raises(toolkit.Invalid)),
-    ])
-    def test_valid_fork_activity(self, fork_resource, fork_activity, result):
+    @pytest.mark.parametrize("value, result", VALID_ID_PARAMS)
+    def test_valid_resource_id(self, value, result):
+        resource = factories.Resource()
+
+        if value:
+            value = value.format(good_object_id=resource['id'])
+
+        key = ('resources', 0, 'some_key')
+        flattened_data = {key: value}
+
+        with result:
+            fork_validators.valid_resource_id(key, flattened_data, {}, {'user': 'user'})
+
+    @pytest.mark.parametrize("value, result", VALID_ID_PARAMS)
+    def test_valid_activity_id(self, value, result):
         user = factories.User()
-        resource = factories.Resource(id="good-resource-id")
+        resource = factories.Resource()
         dataset = factories.Dataset(resources=[resource])
         activity = factories.Activity(
             activity_type="changed package",
@@ -45,17 +53,54 @@ class TestValidFork():
             user_id=user["id"]
         )
 
-        if fork_resource:
-            fork_resource = fork_resource.format(resource_id=resource['id'])
+        if value:
+            value = value.format(good_object_id=activity['id'])
 
-        if fork_activity:
-            fork_activity = fork_activity.format(activity_id=activity['id'])
+        key = ('some_key', )
+        flattened_data = {key: value}
 
-        key = ('resources', 0, 'fork_activity')
+        with result:
+            fork_validators.valid_activity_id(key, flattened_data, {}, {'user': user['name']})
+
+
+    @pytest.mark.parametrize("fork_key, fork_value, result", [
+        (('resources', 0, 'fork_resource'), "resource-id", does_not_raise()),
+        (('resources', 0, 'fork_resource'), "", pytest.raises(toolkit.Invalid)),
+        (('resources', 0, 'fork_resource'), None, pytest.raises(toolkit.Invalid)),
+        (('fork_dataset',), "dataset-id", does_not_raise()),
+        (('fork_dataset',), "", pytest.raises(toolkit.Invalid)),
+        (('fork_dataset',), None, pytest.raises(toolkit.Invalid)),
+
+    ])
+    def test_check_forked_object(self, fork_key, fork_value, result):
+
+        key = fork_key[:-1] + ("some_key",)
         flattened_data = {
-            ('resources', 0, 'fork_resource'): fork_resource,
-            key: fork_activity
+            fork_key: fork_value,
+            key: "some-value"
         }
 
         with result:
-            fork_validators.valid_fork_activity(key, flattened_data, {}, {'user': 'user'})
+            fork_validators.check_forked_object(key, flattened_data, {}, {'user': 'user'})
+
+
+    @pytest.mark.parametrize("new_value, result", [
+        ("different-value", pytest.raises(toolkit.Invalid)),
+        ("original-value", does_not_raise()),
+    ])
+    def test_dataset_field_not_changed(self, new_value, result):
+
+        dataset = mock.Mock()
+        dataset.some_key = "original-value"
+        key = ('some_key',)
+        flattened_data = {key: new_value}
+
+        with result:
+            fork_validators.dataset_field_not_changed(
+                key,
+                flattened_data,
+                {},
+                {'user': 'user', 'package': dataset}
+            )
+
+
