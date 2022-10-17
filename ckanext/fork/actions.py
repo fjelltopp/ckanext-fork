@@ -33,6 +33,19 @@ def dataset_fork(context, data_dict):
     return toolkit.get_action('package_show')(context, {'id': new_dataset['id']})
 
 
+def resource_fork(context, data_dict):
+    resource_id = toolkit.get_or_bust(data_dict, 'id')
+    activity_id = data_dict.pop('activity_id', None)
+    forked_data = util.get_forked_data(context, resource_id, activity_id)
+    resource = forked_data['resource']
+    resource.pop('id')
+    data_dict.pop('id')
+    data_dict['fork_resource'] = resource_id
+    data_dict['fork_activity'] = forked_data['activity_id']
+    resource = {**resource, **data_dict}
+    new_resource = toolkit.get_action('resource_create')(context, resource)
+    return toolkit.get_action('resource_show')({'for_View': True}, {'id': new_resource['id']})
+
 
 @logic.validate(logic.schema.default_autocomplete_schema)
 def resource_autocomplete(context, data_dict):
