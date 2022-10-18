@@ -99,10 +99,12 @@ def package_create_update(next_action, context, data_dict):
 def package_show(next_action, context, data_dict):
     dataset = next_action(context, data_dict)
 
-    for resource in dataset.get("resources", []):
+    if context.get('check_synced', True):
 
-        if resource.get("fork_resource"):
-            resource['fork_synced'] = util.is_synced_fork(context, resource)
+        for resource in dataset.get("resources", []):
+
+            if resource.get("fork_resource"):
+                resource['fork_synced'] = util.is_synced_fork(context, resource)
 
     return dataset
 

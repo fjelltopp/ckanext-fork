@@ -32,10 +32,10 @@ def is_synced_fork(context, resource):
         return False
 
     forked_resource_id = resource.get('fork_resource')
-    forked_resource_current_sha256 = toolkit.get_action("resource_show")(context, {
-        'id': forked_resource_id,
-        'check_synced': False
-    }).get("sha256")
+    forked_resource_current_sha256 = toolkit.get_action("resource_show")(
+        {**context, 'check_synced': False},
+        {'id': forked_resource_id}
+    ).get("sha256")
     return forked_resource_current_sha256 == resource.get("sha256")
 
 
