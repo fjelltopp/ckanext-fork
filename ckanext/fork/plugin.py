@@ -85,7 +85,8 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
             'package_show': fork_actions.package_show,
             'package_create': fork_actions.package_create_update,
             'package_update': fork_actions.package_create_update,
-            'dataset_fork': fork_actions.dataset_fork
+            'dataset_fork': fork_actions.dataset_fork,
+            'resource_fork': fork_actions.resource_fork
         }
 
     # IValidators
