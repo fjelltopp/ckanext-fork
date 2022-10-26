@@ -58,6 +58,10 @@ def resource_autocomplete(context, data_dict):
     pkg_list = []
 
     for package in results:
+
+        if not package['resources']:
+            continue
+
         resources = []
 
         for resource in package['resources']:
