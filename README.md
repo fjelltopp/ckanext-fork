@@ -2,7 +2,16 @@
 
 # ckanext-fork
 
-**TODO:** Put a description of your extension here:  What does it do? What features does it have? Consider including some screenshots or embedding a video!
+This extension offers tools to "fork" datasets and resources in CKAN.  To "fork" a dataset or resources is to duplicate/copy/clone the object from one part of the system to another, whilst making sure we record the action appropriatley in the metadata. 
+
+The extension can only be used with CKAN instances using ckanext-blob-storage and Giftless as a file store. This is because duplicating data files is a costly and resource-intensive task in a traditional CKAN instance, but ckanext-blob-storage reduces this task to just duplicating metadata. 
+
+For the purposes of forking a resource, this extension introduces three optional new metadata fields for resources: 
+ - `fork_resource` records the resource_id of the forked_resource;
+ - `fork_activity` records the activity ID of the forked resource's dataset at the time of forking;
+ - `fork_synced` is a pseudo field generated when viewing a dataset that informs you whether the current data matches the forked data.
+
+If `fork_resource` exists in a `package_update/create` request, or a `resource_update/create` request, then the blob_storage metadata will always be overwritten with the metadata of the specified forked_resource. To stop forking a resource, you must set this field to be Falsy. 
 
 
 ## Requirements
