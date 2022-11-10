@@ -5,7 +5,20 @@ def get_parent_resource_details(resource_id):
     resource = toolkit.get_action('resource_show')(data_dict={'id': resource_id})
     package = toolkit.get_action('package_show')(data_dict={'id': resource['package_id']})
     organization = package['organization']
-    return { 'resource': { 'name': resource['name'], 'url': resource['url'].split('/download')[0] }, 'package': { 'name': package['title'], 'url': '/dataset/'+package['name'] }, 'organization': { 'name': organization['title'], 'url': '/organization/'+organization['name'] } }
+    return {
+        'resource': {
+            'name': resource['name'],
+            'url': resource['url'].split('/download')[0]
+        },
+        'package': {
+            'name': package['title'],
+            'url': '/dataset/'+package['name']
+        },
+        'organization': {
+            'name': organization['title'],
+            'url': '/organization/'+organization['name']
+        }
+    }
 
 
 
