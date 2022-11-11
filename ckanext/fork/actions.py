@@ -70,6 +70,8 @@ def resource_autocomplete(context, data_dict):
             resources.append({
                 'id': resource['id'],
                 'name': resource['name'],
+                'format': resource['format'],
+                'filename': resource['url'].split('/')[-1],
                 'last_modified': last_modified,
                 'match': match
             })

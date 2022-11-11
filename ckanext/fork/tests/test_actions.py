@@ -72,6 +72,8 @@ class TestResourceAutocomplete():
                 assert set(resource.keys()) == {
                     'id',
                     'name',
+                    'format',
+                    'filename',
                     'match',
                     'last_modified'
                 }
