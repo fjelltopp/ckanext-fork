@@ -11,6 +11,7 @@ def get_parent_resource_details(resource_id):
             'url': resource['url'].split('/download')[0]
         },
         'package': {
+            'id': package['id'],
             'name': package['title'],
             'url': '/dataset/'+package['name']
         },
