@@ -27,6 +27,12 @@ def datasets(reset_db, reset_index):
         name=f"test-dataset-{i:02d}",
         owner_org=organization['id']
     ) for i in range(3)]
+    datasets.append(factories.Dataset(
+        title="Private Dataset",
+        name="test-dataset-04",
+        owner_org=organization['id'],
+        private=True
+    ))
 
     for (d, dataset) in enumerate(datasets):
         dataset["resources"] = [factories.Resource(
@@ -47,11 +53,13 @@ class TestResourceAutocomplete():
 
     @pytest.mark.parametrize("q,result_names", [
         ('02', ['test-dataset-02', 'test-dataset-00']),
-        ('00', ['test-dataset-00', 'test-dataset-02', 'test-dataset-01']),
+        ('00', ['test-dataset-00', 'test-dataset-04', 'test-dataset-02', 'test-dataset-01']),
         ('01', ['test-dataset-01', 'test-dataset-00']),
         ('Resource 01', ['test-dataset-01', 'test-dataset-00']),
         ('22222222-2222-2222-2222-000000000000', ['test-dataset-02']),
-        ('00000000-0000-0000-0000-111111111111', ['test-dataset-00'])
+        ('00000000-0000-0000-0000-111111111111', ['test-dataset-00']),
+        # Check private datasets are included in the response
+        ('Private Resource 01', ['test-dataset-04', 'test-dataset-01', 'test-dataset-00'])
     ])
     def test_resource_autocomplete(self, q, result_names, datasets):
         result = call_action('resource_autocomplete', q=q)
