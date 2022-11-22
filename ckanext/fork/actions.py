@@ -65,7 +65,8 @@ def resource_autocomplete(context, data_dict):
     if not datasets:
         datasets = toolkit.get_action('package_search')(context, {
             "q": q,
-            "rows": 10
+            "rows": 10,
+            "include_private": True
         })['results']
 
     for dataset in datasets:
