@@ -2,6 +2,7 @@ import ckan.logic as logic
 import ckan.plugins.toolkit as toolkit
 import ckanext.fork.util as util
 import logging
+import re
 
 log = logging.getLogger(__name__)
 
@@ -44,44 +45,81 @@ def resource_fork(context, data_dict):
     data_dict['fork_activity'] = forked_data['activity_id']
     resource = {**resource, **data_dict}
     new_resource = toolkit.get_action('resource_create')(context, resource)
-    return toolkit.get_action('resource_show')({'for_View': True}, {'id': new_resource['id']})
+    return toolkit.get_action('resource_show')(
+        {'for_View': True},
+        {'id': new_resource['id']}
+    )
 
 
+@toolkit.side_effect_free
 @logic.validate(logic.schema.default_autocomplete_schema)
 def resource_autocomplete(context, data_dict):
-    q = toolkit.get_or_bust(data_dict, 'q')
+    q = toolkit.get_or_bust(data_dict, 'q').strip()
     q_lower = q.lower()
-    results = toolkit.get_action('package_search')(context, {
-        "q": q,
-        "rows": 10
-    })['results']
+    datasets = []
     pkg_list = []
 
-    for package in results:
+    if _is_uuid(q_lower):
+        datasets = _get_dataset_from_resource_uuid(context, q_lower)
+
+    if not datasets:
+        datasets = toolkit.get_action('package_search')(context, {
+            "q": q,
+            "rows": 10,
+            "include_private": True
+        })['results']
+
+    for dataset in datasets:
+
+        if not dataset['resources']:
+            continue
+
         resources = []
 
-        for resource in package['resources']:
+        for resource in dataset['resources']:
             last_modified = toolkit.h.time_ago_from_timestamp(resource['last_modified'])
-            match = q_lower in resource['name'].lower()
+            match = q_lower in resource['name'].lower() or q_lower == resource['id']
             resources.append({
                 'id': resource['id'],
                 'name': resource['name'],
+                'format': resource['format'],
+                'filename': resource['url'].split('/')[-1],
                 'last_modified': last_modified,
                 'match': match
             })
 
-        organization_title = package.get('organization', {}).get('title', "")
-        match = q_lower in package['name'].lower() or q_lower in package['title'].lower()
+        organization_title = dataset.get('organization', {}).get('title', "")
+        match = q_lower in dataset['name'].lower() or q_lower in dataset['title'].lower()
         pkg_list.append({
-            'id': package['id'],
-            'name': package['name'],
-            'title': package['title'],
+            'id': dataset['id'],
+            'name': dataset['name'],
+            'title': dataset['title'],
             'owner_org': organization_title,
             'match': match,
             'resources': resources
         })
 
     return pkg_list
+
+
+def _is_uuid(input):
+    regex = r"[a-z, 0-9]{8}-[a-z, 0-9]{4}-[a-z, 0-9]{4}-[a-z, 0-9]{4}-[a-z, 0-9]{12}"
+    return re.search(regex, input)
+
+
+def _get_dataset_from_resource_uuid(context, uuid):
+    try:
+        resource = toolkit.get_action('resource_show')(
+            context,
+            {"id": uuid}
+        )
+        package = toolkit.get_action('package_show')(
+            context,
+            {"id": resource['package_id']}
+        )
+        return [package]
+    except toolkit.NotFound:
+        return []
 
 
 @toolkit.chained_action

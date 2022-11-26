@@ -2,7 +2,7 @@ import ckan.plugins as plugins
 import ckan.plugins.toolkit as toolkit
 import ckanext.fork.actions as fork_actions
 import ckanext.fork.validators as fork_validators
-
+from ckanext.fork.helpers import get_parent_resource_details
 
 class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
 
@@ -10,6 +10,7 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
     plugins.implements(plugins.IActions)
     plugins.implements(plugins.IDatasetForm)
     plugins.implements(plugins.IValidators)
+    plugins.implements(plugins.ITemplateHelpers)
 
     # IConfigurer
     def update_config(self, config_):
@@ -86,7 +87,7 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
             'package_create': fork_actions.package_create_update,
             'package_update': fork_actions.package_create_update,
             'dataset_fork': fork_actions.dataset_fork,
-            'resource_fork': fork_actions.resource_fork
+            'resource_fork': fork_actions.resource_fork,
         }
 
     # IValidators
@@ -98,3 +99,10 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
             'check_forked_object': fork_validators.check_forked_object,
             'dataset_field_not_changed': fork_validators.dataset_field_not_changed
         }
+
+    # ITemplateHelpers
+    def get_helpers(self):
+    # Template helper function names should begin with the name of the
+    # extension they belong to, to avoid clashing with functions from
+    # other extensions.
+        return {'fork_get_parent_resource_details': get_parent_resource_details}
