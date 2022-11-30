@@ -2,10 +2,21 @@ from ckanext.fork.util import get_forked_data
 from ckan.plugins import toolkit
 
 def get_parent_resource_details(resource_id):
-    resource = toolkit.get_action('resource_show')(data_dict={'id': resource_id})
-    package = toolkit.get_action('package_show')(data_dict={'id': resource['package_id']})
+    try:
+        resource = toolkit.get_action('resource_show')(data_dict={'id': resource_id})
+    except toolkit.NotAuthorized:
+        return {'success': False,
+                'msg': "Unable to access parent resource information; current user may not be authorized to access this."}
+
+    try:
+        package = toolkit.get_action('package_show')(data_dict={'id': resource['package_id']})
+    except toolkit.NotAuthorized:
+        return {'success': False,
+                'msg': "Unable to access parent resource package information; current user may not be authorized to access this."}
+
     organization = package['organization']
     return {
+        'success': True,
         'resource': {
             'name': resource['name'],
             'url': resource['url'].split('/download')[0]
