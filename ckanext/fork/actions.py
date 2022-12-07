@@ -133,6 +133,9 @@ def package_create_update(next_action, context, data_dict):
         except logic.NotFound as e:
             log.info(f"No existing resource found with error: {e}")
             original_resource_data = {}
+        except KeyError as e:
+            log.info(f"No resource id provided, probably a new resource. Original error: {e}")
+            original_resource_data = {}
         except Exception as e:
             log.exception([
                 "Trying to update a resource but I can't find the original resource ",
