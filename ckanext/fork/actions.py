@@ -130,9 +130,15 @@ def package_create_update(next_action, context, data_dict):
                 context,
                 {"id": resource["id"]}
             )
-        except Exception as e:
+        except logic.NotFound as e:
             log.info(f"No existing resource found with error: {e}")
             original_resource_data = {}
+        except Exception as e:
+            log.exception([
+                "Trying to update a resource but I can't find the original resource ",
+                "to check the metadata to catch fork changes."
+            ])
+            raise e
 
         if resource.get("fork_resource") or original_resource_data.get("fork_resource"):
             file_metadata_changed = False
@@ -141,7 +147,8 @@ def package_create_update(next_action, context, data_dict):
                 new_value = resource.get(key, "")
                 if new_value:
                     original_value = original_resource_data.get(key, "")
-                    file_metadata_changed = file_metadata_changed or original_value != new_value
+                    if original_value != new_value:
+                        file_metadata_changed = True
 
             if resource.get("fork_resource") and not file_metadata_changed:
                 resource = util.blob_storage_fork_resource(context, resource)
