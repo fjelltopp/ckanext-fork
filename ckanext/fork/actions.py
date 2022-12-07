@@ -124,11 +124,40 @@ def _get_dataset_from_resource_uuid(context, uuid):
 
 @toolkit.chained_action
 def package_create_update(next_action, context, data_dict):
-
     for resource in data_dict.get("resources", []):
+        try:
+            original_resource_data = toolkit.get_action('resource_show')(
+                context,
+                {"id": resource["id"]}
+            )
+        except logic.NotFound as e:
+            log.info(f"No existing resource found with error: {e}")
+            original_resource_data = {}
+        except KeyError as e:
+            log.info(f"No resource id provided, probably a new resource. Original error: {e}")
+            original_resource_data = {}
+        except Exception as e:
+            log.exception([
+                "Trying to update a resource but I can't find the original resource ",
+                "to check the metadata to catch fork changes."
+            ])
+            raise e
 
-        if resource.get("fork_resource"):
-            resource = util.blob_storage_fork_resource(context, resource)
+        if resource.get("fork_resource") or original_resource_data.get("fork_resource"):
+            file_metadata_changed = False
+
+            for key in ['lfs_prefix', 'size', 'sha256', 'url_type']:
+                new_value = resource.get(key, "")
+                if new_value:
+                    original_value = original_resource_data.get(key, "")
+                    if original_value != new_value:
+                        file_metadata_changed = True
+
+            if resource.get("fork_resource") and not file_metadata_changed:
+                resource = util.blob_storage_fork_resource(context, resource)
+            else:
+                resource['fork_resource'] = ''
+                resource['fork_activity'] = ''
 
     return next_action(context, data_dict)
 
