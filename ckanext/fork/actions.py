@@ -3,7 +3,6 @@ import ckan.plugins.toolkit as toolkit
 import ckanext.fork.util as util
 import logging
 import re
-from ckanext.fork.helpers import check_metadata_for_changes, get_current_resource
 
 log = logging.getLogger(__name__)
 
@@ -135,8 +134,8 @@ def package_create(next_action, context, data_dict):
 @toolkit.chained_action
 def package_update(next_action, context, data_dict):
     for resource in data_dict.get("resources", []):
-        current = get_current_resource(context, resource)
-        resource_metadata_changed = check_metadata_for_changes(current, resource)
+        current = util.get_current_resource(context, resource)
+        resource_metadata_changed = util.check_metadata_for_file_change(current, resource)
         if resource.get("fork_resource") and not resource_metadata_changed:
             resource = util.blob_storage_fork_resource(context, resource)
         else:

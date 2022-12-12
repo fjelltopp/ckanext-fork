@@ -1,9 +1,5 @@
-import logging
-import ckan.logic as logic
 from ckanext.fork.util import get_forked_data
 from ckan.plugins import toolkit
-
-log = logging.getLogger(__name__)
 
 
 def get_parent_resource_details(resource_id):
@@ -63,34 +59,3 @@ def fork_metadata(resource):
             pass
 
     return metadata
-
-
-def get_current_resource(context, resource):
-    try:
-        current = toolkit.get_action('resource_show')(
-            context,
-            {"id": resource["id"]}
-        )
-    except logic.NotFound as e:
-        log.info(f"No existing resource found with error: {e}")
-        current = {}
-    except KeyError as e:
-        log.info(f"No resource id provided, probably a new resource. Original error: {e}")
-        current = {}
-    except Exception as e:
-        log.exception(f"I can't find the original resource for unknown reason: {e}")
-        raise e
-
-    return current
-
-
-def check_metadata_for_changes(current, resource):
-    file_metadata_changed = False
-    if resource.get("fork_resource") or current.get("fork_resource"):
-        for key in ['lfs_prefix', 'size', 'sha256', 'url_type']:
-            new_value = resource.get(key, "")
-            if new_value:
-                original_value = current.get(key, "")
-                if original_value != new_value:
-                    file_metadata_changed = True
-    return file_metadata_changed
