@@ -4,6 +4,7 @@ import ckanext.fork.actions as fork_actions
 import ckanext.fork.validators as fork_validators
 from ckanext.fork.helpers import get_parent_resource_details
 
+
 class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
 
     plugins.implements(plugins.IConfigurer)
@@ -84,8 +85,8 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
         return {
             'resource_autocomplete': fork_actions.resource_autocomplete,
             'package_show': fork_actions.package_show,
-            'package_create': fork_actions.package_create_update,
-            'package_update': fork_actions.package_create_update,
+            'package_create': fork_actions.package_create,
+            'package_update': fork_actions.package_update,
             'dataset_fork': fork_actions.dataset_fork,
             'resource_fork': fork_actions.resource_fork,
         }
@@ -102,7 +103,4 @@ class ForkPlugin(plugins.SingletonPlugin, toolkit.DefaultDatasetForm):
 
     # ITemplateHelpers
     def get_helpers(self):
-    # Template helper function names should begin with the name of the
-    # extension they belong to, to avoid clashing with functions from
-    # other extensions.
         return {'fork_get_parent_resource_details': get_parent_resource_details}
