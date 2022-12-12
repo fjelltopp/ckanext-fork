@@ -3,7 +3,7 @@ import ckan.plugins.toolkit as toolkit
 import ckanext.fork.util as util
 import logging
 import re
-from .helpers import check_metadata_for_changes, get_current_resource
+from ckanext.fork.helpers import check_metadata_for_changes, get_current_resource
 
 log = logging.getLogger(__name__)
 
