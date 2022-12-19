@@ -1,3 +1,4 @@
+import io
 import pytest
 import ckan.plugins.toolkit as toolkit
 from ckan.tests import factories
@@ -91,7 +92,7 @@ class TestResourceAutocomplete():
 
 
 @pytest.mark.usefixtures('clean_db')
-class TestPackageShow():
+class TestResourceShow():
 
     def test_synced_fork_display(self, forked_data):
         dataset = factories.Dataset()
@@ -115,9 +116,16 @@ class TestPackageShow():
 
 
 @pytest.mark.usefixtures('clean_db')
-class TestPackageCreate():
+class TestResourceCreate():
 
-    def test_resource_create_with_no_activity_id(self, forked_data):
+    def test_not_fork_resource_create(self):
+        dataset = factories.Dataset()
+        resource = factories.Resource(package_id=dataset['id'])
+        assert not resource.get('fork_resource', False)
+        assert not resource.get('fork_activity', False)
+        assert not resource.get('fork_synced', False)
+
+    def test_fork_resource_create_with_no_activity_id(self, forked_data):
         dataset = factories.Dataset()
         resource = call_action(
             "resource_create",
@@ -129,7 +137,7 @@ class TestPackageCreate():
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]
 
-    def test_resource_create_with_activity_id(self, forked_data):
+    def test_fork_resource_create_with_activity_id(self, forked_data):
         call_action('resource_patch', id=forked_data['resource']['id'], sha256='newsha')
         dataset = factories.Dataset()
         resource = call_action(
@@ -144,9 +152,9 @@ class TestPackageCreate():
 
 
 @pytest.mark.usefixtures('clean_db')
-class TestPackageUpdate():
+class TestResourceUpdate():
 
-    def test_resource_update_with_no_activity_id(self, forked_data):
+    def test_fork_resource_update_with_no_activity_id(self, forked_data):
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -171,7 +179,7 @@ class TestPackageUpdate():
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]
 
-    def test_resource_update_with_activity_id(self, forked_data):
+    def test_fork_resource_update_with_activity_id(self, forked_data):
         call_action('resource_patch', id=forked_data['resource']['id'], sha256='newsha')
         dataset = factories.Dataset()
         resource = factories.Resource(
@@ -195,6 +203,99 @@ class TestPackageUpdate():
         for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
             assert resource[key] == forked_data['resource'][key]
 
+    def test_non_fork_resource_update_with_new_fork_resource(self, forked_data):
+        dataset = factories.Dataset()
+        resource = factories.Resource(
+            package_id=dataset['id'],
+        )
+        resource = call_action(
+            "resource_update",
+            id=resource['id'],
+            fork_resource=forked_data['resource']['id'],
+        )
+        assert resource['fork_activity'] == forked_data['activity_id']
+
+        for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
+            assert resource[key] == forked_data['resource'][key]
+
+    def test_fork_resource_update_with_new_non_fork_resource_details(self, forked_data):
+        dataset = factories.Dataset()
+        resource = factories.Resource(
+            package_id=dataset['id'],
+            fork_resource=forked_data['resource']['id']
+        )
+        resource = call_action(
+            "resource_update",
+            id=resource['id'],
+            url='http://link.to.some.data'
+        )
+        assert resource['fork_resource'] == ''
+        assert resource['fork_activity'] == ''
+
+    def test_fork_resource_update_with_new_metadata(self, forked_data):
+        dataset = factories.Dataset()
+        resource = factories.Resource(
+            package_id=dataset['id'],
+            fork_resource=forked_data['resource']['id']
+        )
+        resource['description'] = 'New description'
+        resource = call_action(
+            "resource_update",
+            **resource
+        )
+        assert resource['fork_resource'] == forked_data['resource']['id']
+        assert resource['fork_activity'] == forked_data['activity_id']
+        assert resource['description'] == 'New description'
+
+    def test_non_fork_resource_update_with_new_fork_details(self, forked_data):
+        dataset = factories.Dataset()
+        resource = factories.Resource(
+            package_id=dataset['id'],
+        )
+        resource = call_action(
+            "resource_update",
+            id=resource['id'],
+            fork_resource=forked_data['resource']['id']
+        )
+        assert resource['fork_activity'] == forked_data['activity_id']
+
+        for key in ['sha256', 'size', 'lfs_prefix', 'url_type']:
+            assert resource[key] == forked_data['resource'][key]
+
+    def test_fork_resource_update_with_new_non_fork_resource_details_via_api_call(self, app, forked_data):
+        user = factories.Sysadmin()
+        dataset = factories.Dataset()
+        resource = factories.Resource(
+            package_id=dataset['id'],
+            fork_resource=forked_data['resource']['id']
+        )
+
+        headers = {
+            'Authorization': user['apikey'],
+        }
+        files = {
+            'id': resource['id'],
+            'upload': (io.BytesIO(b'some text data'), 'test.txt'),
+        }
+        response = app.post(
+            url=toolkit.url_for(
+                controller='api',
+                action='action',
+                logic_function='resource_update',
+                ver='/3'
+            ),
+            headers=headers,
+            data=files
+        )
+        assert response.status_code == 200
+
+        resource = call_action(
+            "resource_show",
+            id=resource['id'],
+        )
+        assert resource['fork_resource'] == ''
+        assert resource['fork_activity'] == ''
+
 
 @pytest.fixture
 def dataset():
@@ -204,7 +305,7 @@ def dataset():
         id="test-id",
         owner_org=org['id'],
     )
-    dataset['resources'] = resources=[factories.Resource(
+    dataset['resources'] = [factories.Resource(
         package_id='test-id',
         sha256='testsha256',
         size=999,
