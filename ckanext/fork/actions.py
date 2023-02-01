@@ -174,4 +174,3 @@ def package_show(next_action, context, data_dict):
                 resource['fork_synced'] = util.is_synced_fork(context, resource)
 
     return dataset
-
