@@ -114,6 +114,21 @@ class TestResourceShow():
         response = call_action('resource_show', id=resource['id'])
         assert not response['fork_synced']
 
+    def test_no_access_to_forked_resource(self, forked_data):
+        dataset = factories.Dataset()
+        resource = factories.Resource(
+            package_id=dataset['id'],
+            fork_resource=forked_data['resource']['id'],
+            fork_activity=forked_data['activity_id']
+        )
+        call_action('package_patch', id=forked_data['dataset']['id'], private=True)
+        user = factories.User()
+        response = toolkit.get_action('resource_show')(
+            {'user': user['name']},
+            {'id': resource['id']}
+        )
+        assert response['fork_synced']
+
 
 @pytest.mark.usefixtures('clean_db')
 class TestResourceCreate():

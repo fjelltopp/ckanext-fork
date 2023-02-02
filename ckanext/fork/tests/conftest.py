@@ -11,7 +11,8 @@ def forked_data():
         "lfs_prefix": "test/resource",
         "url_type": "upload"
     }
-    forked_dataset = factories.Dataset()
+    organization = factories.Organization()
+    forked_dataset = factories.Dataset(owner_org=organization['id'])
     forked_resource = factories.Resource(
         package_id=forked_dataset['id'],
         **giftless_metadata
