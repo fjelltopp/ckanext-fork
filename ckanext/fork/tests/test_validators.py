@@ -46,7 +46,6 @@ class TestValidFork():
     def test_valid_activity_id(self, value, result):
         user = factories.User()
         dataset = factories.Dataset()
-        resource = factories.Resource(package_id=dataset['id'])
         activity = factories.Activity(
             activity_type="changed package",
             object_id=dataset["id"],
