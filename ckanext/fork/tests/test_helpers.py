@@ -2,7 +2,7 @@ import pytest
 from ckan.tests import factories
 from ckanext.fork import helpers
 from ckan.plugins import toolkit
-import mock
+from unittest import mock
 
 
 @pytest.mark.usefixtures('clean_db', 'with_request_context')

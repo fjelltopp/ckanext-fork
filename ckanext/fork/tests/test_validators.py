@@ -3,7 +3,7 @@ from contextlib import nullcontext as does_not_raise
 import ckanext.fork.validators as fork_validators
 import ckan.plugins.toolkit as toolkit
 from ckan.tests import factories
-import mock
+from unittest import mock
 
 
 @pytest.mark.usefixtures('clean_db')
@@ -62,7 +62,6 @@ class TestValidFork():
         with result:
             fork_validators.valid_activity_id(key, flattened_data, {}, {'user': user['name']})
 
-
     @pytest.mark.parametrize("fork_key, fork_value, result", [
         (('resources', 0, 'fork_resource'), "resource-id", does_not_raise()),
         (('resources', 0, 'fork_resource'), "", pytest.raises(toolkit.Invalid)),
@@ -83,7 +82,6 @@ class TestValidFork():
         with result:
             fork_validators.check_forked_object(key, flattened_data, {}, {'user': 'user'})
 
-
     @pytest.mark.parametrize("new_value, result", [
         ("different-value", pytest.raises(toolkit.Invalid)),
         ("original-value", does_not_raise()),
@@ -102,5 +100,3 @@ class TestValidFork():
                 {},
                 {'user': 'user', 'package': dataset}
             )
-
-

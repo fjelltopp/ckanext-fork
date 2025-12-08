@@ -68,7 +68,7 @@ class TestResourceAutocomplete():
 
     def test_resource_autocomplete_output_format(self, datasets):
         result = call_action('resource_autocomplete', q="Test Resource 08")
-        assert type(result) == list
+        assert isinstance(result, list)
 
         for dataset in result:
             assert set(dataset.keys()) == {
