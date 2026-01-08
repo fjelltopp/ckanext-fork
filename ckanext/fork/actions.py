@@ -63,11 +63,14 @@ def resource_autocomplete(context, data_dict):
         datasets = _get_dataset_from_resource_uuid(context, q_lower)
 
     if not datasets:
-        datasets = toolkit.get_action('package_search')(context, {
-            "q": q,
-            "rows": 10,
+        # Get all datasets since package_search doesn't search resource fields
+        # We'll filter by matching resources in Python code below
+        search_results = toolkit.get_action('package_search')(context, {
+            "q": "*:*",  # Get all datasets
+            "rows": 100,
             "include_private": True
-        })['results']
+        })
+        datasets = search_results['results']
 
     for dataset in datasets:
 
@@ -75,10 +78,13 @@ def resource_autocomplete(context, data_dict):
             continue
 
         resources = []
+        has_matching_resource = False
 
         for resource in dataset['resources']:
             last_modified = toolkit.h.time_ago_from_timestamp(resource['last_modified'])
-            match = q_lower in resource['name'].lower() or q_lower == resource['id']
+            match = q_lower in resource['name'].lower() or q_lower in resource['id'].lower()
+            if match:
+                has_matching_resource = True
             resources.append({
                 'id': resource['id'],
                 'name': resource['name'],
@@ -89,15 +95,27 @@ def resource_autocomplete(context, data_dict):
             })
 
         organization_title = dataset.get('organization', {}).get('title', "")
-        match = q_lower in dataset['name'].lower() or q_lower in dataset['title'].lower()
-        pkg_list.append({
-            'id': dataset['id'],
-            'name': dataset['name'],
-            'title': dataset['title'],
-            'owner_org': organization_title,
-            'match': match,
-            'resources': resources
-        })
+        dataset_match = q_lower in dataset['name'].lower() or q_lower in dataset['title'].lower()
+
+        # Only include dataset if it matches at dataset level OR has matching resources
+        if dataset_match or has_matching_resource:
+            pkg_list.append({
+                'id': dataset['id'],
+                'name': dataset['name'],
+                'title': dataset['title'],
+                'owner_org': organization_title,
+                'match': dataset_match,
+                'resources': resources
+            })
+
+    # Sort results: datasets with name/title matches first, then resource-only matches
+    # Within each group, maintain the order from package_search
+    for i, item in enumerate(pkg_list):
+        item['_original_index'] = i
+    pkg_list.sort(key=lambda x: (not x['match'], x['_original_index']))
+    # Remove the temporary index
+    for item in pkg_list:
+        del item['_original_index']
 
     return pkg_list
 
