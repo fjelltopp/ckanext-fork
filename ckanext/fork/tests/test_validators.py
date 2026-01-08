@@ -2,7 +2,7 @@ import pytest
 from contextlib import nullcontext as does_not_raise
 import ckanext.fork.validators as fork_validators
 import ckan.plugins.toolkit as toolkit
-from ckan.tests import factories
+from ckan.tests import factories, helpers
 from unittest import mock
 
 
@@ -42,16 +42,28 @@ class TestValidFork():
         with result:
             fork_validators.valid_resource_id(key, flattened_data, {}, {'user': 'user'})
 
+    @pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
     @pytest.mark.parametrize("value, result", VALID_ID_PARAMS)
     def test_valid_activity_id(self, value, result):
         user = factories.User()
-        resource = factories.Resource()
-        dataset = factories.Dataset(resources=[resource])
-        activity = factories.Activity(
-            activity_type="changed package",
-            object_id=dataset["id"],
-            user_id=user["id"]
+        dataset = factories.Dataset()
+        resource = factories.Resource(package_id=dataset["id"])
+
+        # Trigger an activity by making a change (factories don't create activities)
+        # Must provide user context for activity plugin
+        helpers.call_action(
+            'package_patch',
+            context={'user': user['name']},
+            id=dataset['id'],
+            notes='Trigger activity'
         )
+
+        # Get the activity created by the patch
+        activity_list = helpers.call_action(
+            'package_activity_list',
+            id=dataset['id']
+        )
+        activity = activity_list[0]
 
         if value:
             value = value.format(good_object_id=activity['id'])

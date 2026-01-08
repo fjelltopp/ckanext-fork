@@ -83,3 +83,209 @@ The `resource_autocomplete` action had three bugs:
 - `ckanext/fork/actions.py:56-120` - Updated `resource_autocomplete` function with new search, filtering, and sorting logic
 
 **Result**: ✅ Test passes. The action now correctly finds all datasets with matching resources and returns them in the expected order.
+
+---
+
+### 3. test_valid_activity_id[None-result0] - FIXED
+
+**Test Affected**:
+- `ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id[None-result0]`
+
+**Issue**: `ValidationError: None - {'resources': [{'id': ['Resource id already exists.']}]}`
+
+**Root Cause**:
+The test was using an incompatible factory pattern with CKAN 2.11:
+```python
+resource = factories.Resource()  # Creates resource in DB with ID
+dataset = factories.Dataset(resources=[resource])  # Tries to create NEW resource with same ID - FAILS
+```
+
+In CKAN 2.11, resource ID validation is stricter. When you call `factories.Resource()`, it creates a resource in the database with an ID. Then, when you call `factories.Dataset(resources=[resource])`, the Dataset factory tries to create a new resource with the same ID (from the `resource` dict), which CKAN 2.11 now rejects.
+
+This is a CKAN 2.11 stricter validation issue that didn't fail in earlier versions.
+
+**Solution Applied**:
+Two fixes were needed:
+
+1. **Fixed resource creation pattern**: Changed from passing a pre-created resource to Dataset factory, to creating dataset first, then resource:
+```python
+user = factories.User()
+dataset = factories.Dataset()
+resource = factories.Resource(package_id=dataset["id"])
+```
+
+2. **Fixed Activity creation**: `factories.Activity` doesn't exist in CKAN 2.11. However, with the activity plugin enabled, activities are automatically created when datasets are created. Use `helpers.call_action('package_activity_list')` to retrieve them:
+```python
+from ckan.tests import helpers
+
+# Get activities created automatically when dataset was created
+activity_list = helpers.call_action(
+    'package_activity_list',
+    id=dataset['id']
+)
+activity = activity_list[0]
+```
+
+3. **Enabled activity plugin**: Added `activity` plugin to test.ini to enable activity-related functionality and the `package_activity_list` action in CKAN 2.11.
+
+This approach:
+- Creates the dataset first without resources
+- Creates the resource with `package_id=dataset["id"]` to properly associate it with the dataset
+- Avoids the resource ID conflict by not passing a pre-existing resource to the Dataset factory
+- Leverages automatic activity creation when datasets are created (CKAN 2.11 activity plugin)
+- Uses `helpers.call_action` to retrieve activities instead of trying to create them manually
+- Enables the activity plugin in test configuration
+
+**Files Modified**:
+- `ckanext/fork/tests/test_validators.py:1-6` - Added `helpers` to imports from `ckan.tests`
+- `ckanext/fork/tests/test_validators.py:45` - Added `@pytest.mark.usefixtures('with_plugins')` to ensure plugins are loaded
+- `ckanext/fork/tests/test_validators.py:47-59` - Fixed factory usage pattern and retrieves activities using package_activity_list
+- `test.ini:11` - Added `activity` plugin to enable activity functionality
+
+**Result**: ❌ INCOMPLETE - Test still fails with missing permission_labels column
+
+---
+
+### 4. Activity plugin database schema migration (CKAN 2.11) - FIXED
+
+**Test Affected**:
+- `ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id` (all 4 test cases)
+
+**Issue**: `sqlalchemy.exc.ProgrammingError: column "permission_labels" of relation "activity" does not exist`
+
+**Root Cause**:
+After enabling the `activity` plugin in Fix #3, tests now fail during User factory creation (test setup) with database schema error. The `activity` table is missing the `permission_labels` column.
+
+In CKAN 2.11:
+- The activity plugin adds new database columns including `permission_labels` (a text array for permission-based activity filtering)
+- Plugin-specific migrations require `ckan db upgrade` to be run
+- However, **simply running `ckan db upgrade` in the workflow doesn't help because the `clean_db` fixture rebuilds the database after that**
+- The `clean_db` fixture that tests use rebuilds the database fresh for test isolation, wiping out any plugin migrations
+- Without the `permission_labels` column, any operation that creates activities (like User factory) fails
+
+**Solution Applied**:
+Created a custom `clean_db_with_migrations` fixture that extends the standard `clean_db` fixture:
+
+1. Added `clean_db_with_migrations` fixture to `ckanext/fork/tests/conftest.py`:
+   - Extends the standard `clean_db` fixture
+   - After `clean_db` runs, manually executes SQL to add the `permission_labels` column:
+     ```sql
+     ALTER TABLE activity ADD COLUMN IF NOT EXISTS permission_labels text[];
+     ```
+   - Note: Column type is `text[]` (array), not just `text`, as required by CKAN 2.11's activity plugin
+
+2. Updated the test to use `clean_db_with_migrations` instead of relying on default fixtures
+
+3. Also added `ckan -c test.ini db upgrade` to workflow (`.github/workflows/test.yml:45`) for completeness, though the fixture is the key fix
+
+**Files Modified**:
+- `ckanext/fork/tests/conftest.py:2` - Added `from ckan import model` import
+- `ckanext/fork/tests/conftest.py:33-47` - Added `clean_db_with_migrations` fixture with SQL to create permission_labels column
+- `ckanext/fork/tests/test_validators.py:45` - Changed from `@pytest.mark.usefixtures('with_plugins')` to `@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')`
+- `.github/workflows/test.yml:45` - Added `ckan -c test.ini db upgrade` step (for completeness)
+
+**Result**: ❌ INCOMPLETE - Fixed permission_labels issue, but test still fails with `IndexError: list index out of range`
+
+**Key Learning**:
+In CKAN 2.11, when plugin migrations are needed for tests:
+- The `clean_db` fixture rebuilds the database fresh, removing any migrations applied in workflow setup
+- Custom fixtures that extend `clean_db` and manually add schema changes are the solution
+- This pattern is used in other CKAN 2.11 extensions (e.g., ckanext-blob-storage)
+
+---
+
+### 5. Factories don't create activities - FIXED
+
+**Test Affected**:
+- `ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id` (all 4 test cases)
+
+**Issue**: `IndexError: list index out of range` at `activity = activity_list[0]`
+
+**Root Cause**:
+After fixing the permission_labels issue, the test now fails because `package_activity_list` returns an empty list. The test was expecting activities to be automatically created when using `factories.Dataset()`, but:
+
+- **Factories bypass the action layer** for speed and don't trigger activity creation
+- Activities are only created when operations go through the action layer (e.g., `helpers.call_action()`)
+- The activity plugin's signal handlers only fire when actions are called, not when factories create objects directly
+
+**Solution Applied**:
+Added a `package_patch` call to trigger activity creation before retrieving activities:
+
+```python
+# Trigger an activity by making a change (factories don't create activities)
+helpers.call_action('package_patch', id=dataset['id'], notes='Trigger activity')
+
+# Get the activity created by the patch
+activity_list = helpers.call_action('package_activity_list', id=dataset['id'])
+activity = activity_list[0]
+```
+
+This pattern matches the `forked_data` fixture in conftest.py which also uses `package_patch` to trigger activity creation.
+
+**Files Modified**:
+- `ckanext/fork/tests/test_validators.py:52-59` - Added package_patch call to trigger activity creation, updated comments
+
+**Result**: ❌ INCOMPLETE - Activities are triggered but test fails with "User not found" error (username = '127.0.0.1')
+
+**Key Learning**:
+- ✅ Use factories for creating test data/fixtures (fast)
+- ❌ Don't expect factories to trigger activities or other action layer side effects
+- ✅ Use `helpers.call_action()` to trigger operations that should create activities
+- Pattern: Create objects with factories, then use call_action to trigger activities
+
+---
+
+### 6. Activity plugin requires user context - FIXED
+
+**Test Affected**:
+- `ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id` (all 4 test cases)
+
+**Issue**: `ckan.logic.ValidationError: None - {'user_id': ['User not found']}` with `username = '127.0.0.1'`
+
+**Root Cause**:
+After adding the `package_patch` call to trigger activities, the test fails because:
+
+- When `helpers.call_action()` is called without a `context` parameter, CKAN defaults to an anonymous context
+- The anonymous context sets `context['user']` to `'127.0.0.1'` (the client IP address)
+- When `package_patch` triggers the activity plugin, it calls `_get_user_or_raise(context["user"])`
+- The activity plugin tries to look up a user with username `'127.0.0.1'`, which doesn't exist
+- This is a common issue in CKAN 2.11 when the activity plugin is enabled (see PROGRESS_BLOB_STORAGE.md Issue 18)
+
+**Solution Applied**:
+Added `context={'user': user['name']}` to the `package_patch` call:
+
+```python
+helpers.call_action(
+    'package_patch',
+    context={'user': user['name']},
+    id=dataset['id'],
+    notes='Trigger activity'
+)
+```
+
+This provides the activity plugin with a valid username instead of the default IP address.
+
+**Files Modified**:
+- `ckanext/fork/tests/test_validators.py:54-59` - Added context parameter with user to package_patch call
+
+**Result**: ✅ FIXED - All 4 test cases now pass!
+
+**Key Learning**:
+- In CKAN 2.11 with the activity plugin enabled, always provide `context={'user': username}` when calling actions that modify data
+- Without explicit context, CKAN defaults to IP address `'127.0.0.1'` as the user
+- The activity plugin requires a valid user for creating activity records
+
+---
+
+## Summary
+
+Successfully fixed `test_valid_activity_id` tests through a series of interconnected issues:
+
+1. **Mock import (Fix #1)**: Updated to use `unittest.mock` for Python 3.10
+2. **Resource autocomplete (Fix #2)**: Fixed search strategy and result ordering
+3. **Activity plugin setup (Fix #3)**: Enabled activity plugin and fixed factory pattern for CKAN 2.11
+4. **Permission_labels column (Fix #4)**: Created custom `clean_db_with_migrations` fixture to add missing database column
+5. **Activity creation (Fix #5)**: Added `package_patch` call to trigger activities (factories don't create them)
+6. **User context (Fix #6)**: Provided proper user context to avoid IP address lookup error
+
+**Final Result**: ✅ All tests passing (25 passed, 21 warnings)

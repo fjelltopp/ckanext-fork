@@ -1,4 +1,5 @@
 import pytest
+from ckan import model
 from ckan.tests import factories
 from ckan.tests.helpers import call_action
 
@@ -27,3 +28,20 @@ def forked_data():
         'resource': forked_resource,
         'activity_id': forked_activity_id
     }
+
+
+@pytest.fixture
+def clean_db_with_migrations(clean_db):
+    """
+    Extends the standard clean_db fixture to add activity plugin schema changes.
+
+    In CKAN 2.11, the activity plugin adds a permission_labels column (text[])
+    to the activity table. The clean_db fixture rebuilds the database without
+    plugin-specific migrations, so we manually add the column here.
+    """
+    # Add the permission_labels column required by CKAN 2.11 activity plugin
+    model.Session.execute("""
+        ALTER TABLE activity
+        ADD COLUMN IF NOT EXISTS permission_labels text[];
+    """)
+    model.Session.commit()

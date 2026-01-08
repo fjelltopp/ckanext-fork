@@ -42,15 +42,13 @@ jobs:
         sed -i -e 's/use = config:.*/use = config:\/srv\/app\/src\/ckan\/test-core.ini/' test.ini
 
         ckan -c test.ini db init
+        ckan -c test.ini db upgrade
     - name: Run tests
       run: |
         # Focus on one failing test at a time
         # Uncomment the test you want to work on:
-        pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_actions.py::TestResourceAutocomplete::test_resource_autocomplete -k "00-result_names1"
+        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_actions.py::TestResourceAutocomplete::test_resource_autocomplete -k "00-result_names1"
 
-        # Other failing tests (commented out):
-        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "None-result0"
-        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "result1"
-        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "good_object_id"
-        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "bad-object-id"
+        # Run all test_valid_activity_id tests (should all pass now with factory fix):
+        pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id
 
