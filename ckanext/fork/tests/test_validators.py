@@ -3,7 +3,7 @@ from contextlib import nullcontext as does_not_raise
 import ckanext.fork.validators as fork_validators
 import ckan.plugins.toolkit as toolkit
 from ckan.tests import factories
-import mock
+from unittest import mock
 
 
 @pytest.mark.usefixtures('clean_db')
