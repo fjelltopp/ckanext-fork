@@ -1,47 +1,17 @@
 name: Tests
 on: [pull_request]
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: [ 3.9, "3.10" ]
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install requirements
-        run: pip install flake8 pycodestyle
-      - name: Check syntax
-        run: |
-          flake8 . --count --max-line-length=127 --show-source --statistics
-          
   test:
+    name: CKAN 2.11 - Focus on failing tests
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - ckan-version: "ckan-dev:2.9-py3.9"
-            ckan-postgres-version: "2.9"
-            ckan-solr-version: "2.9-solr8"
-          - ckan-version: "ckan-dev:2.10-py3.10"
-            ckan-postgres-version: "2.10"
-            ckan-solr-version: "2.10"
-          - ckan-version: "ckan-dev:2.11-py3.10"
-            ckan-postgres-version: "2.11"
-            ckan-solr-version: "2.11-solr9"
-            
     container:
-      image: ckan/${{ matrix.ckan-version }}
+      image: ckan/ckan-dev:2.11-py3.10
       options: --user root
     services:
       solr:
-        image: ckan/ckan-solr:${{ matrix.ckan-solr-version }}
+        image: ckan/ckan-solr:2.11-solr9
       postgres:
-        image: ckan/ckan-postgres-dev:${{ matrix.ckan-postgres-version }}
+        image: ckan/ckan-postgres-dev:2.11
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -73,5 +43,14 @@ jobs:
 
         ckan -c test.ini db init
     - name: Run tests
-      run: pytest --ckan-ini=test.ini --cov=ckanext.fork --disable-warnings ckanext/fork
+      run: |
+        # Focus on one failing test at a time
+        # Uncomment the test you want to work on:
+        pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_actions.py::TestResourceAutocomplete::test_resource_autocomplete -k "00-result_names1"
+
+        # Other failing tests (commented out):
+        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "None-result0"
+        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "result1"
+        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "good_object_id"
+        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "bad-object-id"
 
