@@ -161,7 +161,7 @@ def _get_dataset_from_resource_uuid(context, uuid):
             {"id": resource['package_id']}
         )
         return [package]
-    except toolkit.NotFound:
+    except logic.NotFound:
         return []
 
 

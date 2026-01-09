@@ -45,7 +45,7 @@ def datasets(reset_db, reset_index):
     return datasets
 
 
-@pytest.mark.usefixtures('with_request_context')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins', 'with_request_context')
 class TestResourceAutocomplete():
 
     def test_resource_autocomplete_raises_error_if_no_query(self):
