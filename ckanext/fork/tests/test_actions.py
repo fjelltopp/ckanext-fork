@@ -91,7 +91,7 @@ class TestResourceAutocomplete():
                 }
 
 
-@pytest.mark.usefixtures('clean_db')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
 class TestResourceShow():
 
     def test_synced_fork_display(self, forked_data):
@@ -130,7 +130,7 @@ class TestResourceShow():
         assert response['fork_synced']
 
 
-@pytest.mark.usefixtures('clean_db')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
 class TestResourceCreate():
 
     def test_not_fork_resource_create(self):
@@ -166,7 +166,7 @@ class TestResourceCreate():
             assert resource[key] == forked_data['resource'][key]
 
 
-@pytest.mark.usefixtures('clean_db')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
 class TestResourceUpdate():
 
     def test_fork_resource_update_with_no_activity_id(self, forked_data):
@@ -331,7 +331,7 @@ def dataset():
     return call_action('package_show', id=dataset['id'])
 
 
-@pytest.mark.usefixtures('clean_db', 'with_plugins')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
 class TestDatasetFork():
 
     def test_dataset_metadata_duplicated(self, dataset):
@@ -392,7 +392,7 @@ class TestDatasetFork():
         assert result[key] == value
 
 
-@pytest.mark.usefixtures('clean_db', 'with_plugins')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
 class TestResourceFork():
 
     def test_resource_metadata_duplicated(self, dataset):

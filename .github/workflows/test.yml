@@ -45,6 +45,6 @@ jobs:
         ckan -c test.ini db upgrade
     - name: Run tests
       run: |
-        # Run all tests in test_actions.py
-        pytest --ckan-ini=test.ini --disable-warnings "ckanext/fork/tests/test_actions.py"
+        # Run ALL tests
+        pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/
 
