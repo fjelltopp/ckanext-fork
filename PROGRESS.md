@@ -528,3 +528,56 @@ The original matching logic only checked if the full query string appeared as a 
 - 10 "User not found" errors in TestResourceShow/Create/Update
 - 13 "Invalid id provided" errors in TestDatasetFork/ResourceFork
 
+---
+
+## Fix #12: Add user context to resource_create and resource_update actions
+
+**Tests Affected**:
+- `ckanext/fork/tests/test_actions.py::TestResourceShow` (2 tests)
+- `ckanext/fork/tests/test_actions.py::TestResourceCreate` (2 tests)
+- `ckanext/fork/tests/test_actions.py::TestResourceUpdate` (6 tests)
+
+**Issue**: `ckan.logic.ValidationError: None - {'user_id': ['User not found']}`
+
+**Root Cause**:
+In CKAN 2.11 with the activity plugin enabled:
+- Actions that modify data (resource_create, resource_update, resource_patch, package_patch) trigger activity creation
+- The activity plugin requires a valid user context to create activity records
+- When `call_action()` is called without explicit context, CKAN defaults to anonymous context with `user='127.0.0.1'` (IP address)
+- The activity plugin tries to look up this IP as a username and fails with "User not found"
+
+This is similar to Fix #6 but affects test code that calls actions directly.
+
+**Solution Applied**:
+Added `context={'user': user['name']}` to all action calls that modify data:
+
+1. **TestResourceShow**: Added user context to `resource_patch` and `package_patch` calls
+2. **TestResourceCreate**: Added user context to `resource_create` calls
+3. **TestResourceUpdate**: Added user context to all `resource_update` and `resource_patch` calls
+4. **dataset fixture**: Added user context to `package_patch` call
+
+Example pattern:
+```python
+user = factories.User()
+resource = call_action(
+    "resource_create",
+    context={'user': user['name']},
+    package_id=dataset['id'],
+    fork_resource=forked_data['resource']['id']
+)
+```
+
+**Files Modified**:
+- `ckanext/fork/tests/test_actions.py:107-335` - Added user context to 15+ action calls across multiple test methods and the dataset fixture
+
+**Progress**:
+- **Before**: 9 failed, 39 passed, 13 errors
+- **After**: 1 failed, 47 passed, 13 errors
+- **Improvement**: ✅ 8 more tests passing, 8 fewer failures
+
+**Result**: ✅ TestResourceShow, TestResourceCreate, and most of TestResourceUpdate now pass
+
+**Remaining Issues**:
+- 1 failure: `test_fork_resource_update_with_new_non_fork_resource_details_via_api_call` (403 FORBIDDEN)
+- 13 errors: "Invalid id provided" in TestDatasetFork and TestResourceFork
+

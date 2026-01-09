@@ -104,7 +104,8 @@ class TestResourceShow():
         assert response['fork_synced']
 
     def test_unsynced_fork(self, forked_data):
-        call_action('resource_patch', id=forked_data['resource']['id'], sha256='newsha')
+        user = factories.User()
+        call_action('resource_patch', context={'user': user['name']}, id=forked_data['resource']['id'], sha256='newsha')
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -121,7 +122,8 @@ class TestResourceShow():
             fork_resource=forked_data['resource']['id'],
             fork_activity=forked_data['activity_id']
         )
-        call_action('package_patch', id=forked_data['dataset']['id'], private=True)
+        user = factories.User()
+        call_action('package_patch', context={'user': user['name']}, id=forked_data['dataset']['id'], private=True)
         user = factories.User()
         response = toolkit.get_action('resource_show')(
             {'user': user['name']},
@@ -141,9 +143,11 @@ class TestResourceCreate():
         assert not resource.get('fork_synced', False)
 
     def test_fork_resource_create_with_no_activity_id(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = call_action(
             "resource_create",
+            context={'user': user['name']},
             package_id=dataset['id'],
             fork_resource=forked_data['resource']['id']
         )
@@ -153,10 +157,12 @@ class TestResourceCreate():
             assert resource[key] == forked_data['resource'][key]
 
     def test_fork_resource_create_with_activity_id(self, forked_data):
-        call_action('resource_patch', id=forked_data['resource']['id'], sha256='newsha')
+        user = factories.User()
+        call_action('resource_patch', context={'user': user['name']}, id=forked_data['resource']['id'], sha256='newsha')
         dataset = factories.Dataset()
         resource = call_action(
             "resource_create",
+            context={'user': user['name']},
             package_id=dataset['id'],
             fork_resource=forked_data['resource']['id'],
             fork_activity=forked_data['activity_id']
@@ -170,6 +176,7 @@ class TestResourceCreate():
 class TestResourceUpdate():
 
     def test_fork_resource_update_with_no_activity_id(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -177,6 +184,7 @@ class TestResourceUpdate():
         )
         forked_data['resource'] = call_action(
             'resource_patch',
+            context={'user': user['name']},
             id=forked_data['resource']['id'],
             sha256='newsha'
         )
@@ -186,6 +194,7 @@ class TestResourceUpdate():
         )[0]['id']
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             fork_resource=forked_data['resource']['id']
         )
@@ -195,7 +204,8 @@ class TestResourceUpdate():
             assert resource[key] == forked_data['resource'][key]
 
     def test_fork_resource_update_with_activity_id(self, forked_data):
-        call_action('resource_patch', id=forked_data['resource']['id'], sha256='newsha')
+        user = factories.User()
+        call_action('resource_patch', context={'user': user['name']}, id=forked_data['resource']['id'], sha256='newsha')
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -203,6 +213,7 @@ class TestResourceUpdate():
         )
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             fork_resource=forked_data['resource']['id'],
             fork_activity=forked_data['activity_id']
@@ -210,6 +221,7 @@ class TestResourceUpdate():
         resource = factories.Resource(package_id=dataset['id'])
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             fork_resource=forked_data['resource']['id'],
             fork_activity=forked_data['activity_id']
@@ -219,12 +231,14 @@ class TestResourceUpdate():
             assert resource[key] == forked_data['resource'][key]
 
     def test_non_fork_resource_update_with_new_fork_resource(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
         )
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             fork_resource=forked_data['resource']['id'],
         )
@@ -234,6 +248,7 @@ class TestResourceUpdate():
             assert resource[key] == forked_data['resource'][key]
 
     def test_fork_resource_update_with_new_non_fork_resource_details(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -241,6 +256,7 @@ class TestResourceUpdate():
         )
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             url='http://link.to.some.data'
         )
@@ -248,6 +264,7 @@ class TestResourceUpdate():
         assert resource['fork_activity'] == ''
 
     def test_fork_resource_update_with_new_metadata(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -256,6 +273,7 @@ class TestResourceUpdate():
         resource['description'] = 'New description'
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             **resource
         )
         assert resource['fork_resource'] == forked_data['resource']['id']
@@ -263,12 +281,14 @@ class TestResourceUpdate():
         assert resource['description'] == 'New description'
 
     def test_non_fork_resource_update_with_new_fork_details(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
         )
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             fork_resource=forked_data['resource']['id']
         )
@@ -314,6 +334,7 @@ class TestResourceUpdate():
 
 @pytest.fixture
 def dataset():
+    user = factories.User()
     org = factories.Organization()
     dataset = factories.Dataset(
         type='auto-generate-name-from-title',
@@ -327,7 +348,7 @@ def dataset():
         lfs_prefix='test/prefix',
         url_type='upload'
     ) for i in range(3)]
-    call_action('package_patch', id=dataset['id'], notes="Create an activity")
+    call_action('package_patch', context={'user': user['name']}, id=dataset['id'], notes="Create an activity")
     return call_action('package_show', id=dataset['id'])
 
 
