@@ -85,9 +85,25 @@ def resource_autocomplete(context, data_dict):
 
         for resource in dataset['resources']:
             last_modified = toolkit.h.time_ago_from_timestamp(resource['last_modified'])
-            # For resources: match full query string (not individual tokens)
-            # This prevents matching all resources that contain common words like "resource"
-            match = q_lower in resource['name'].lower() or q_lower in resource['id'].lower()
+            # For resources: match based on number of matching tokens
+            # - Single token queries: require exact match (full string)
+            # - Multi-token queries: require at least 2 tokens to match
+            resource_lower = resource['name'].lower()
+            resource_id_lower = resource['id'].lower()
+
+            if len(query_tokens) == 1:
+                # Single token: use full string matching
+                match = q_lower in resource_lower or q_lower in resource_id_lower
+                matching_tokens = 1 if match else 0
+            else:
+                # Multi-token: count how many tokens match
+                matching_tokens = sum(
+                    1 for token in query_tokens
+                    if token in resource_lower or token in resource_id_lower
+                )
+                # Require at least 2 tokens to match
+                match = matching_tokens >= 2
+
             if match:
                 has_matching_resource = True
             resources.append({

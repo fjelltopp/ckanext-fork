@@ -335,27 +335,30 @@ Need to carefully investigate the root cause of the segfault and fix issues one 
 
 ## Fix #9: test_resource_autocomplete - Multi-word query matching
 
-**Test Affected**:
+**Tests Affected**:
 - `ckanext/fork/tests/test_actions.py::TestResourceAutocomplete::test_resource_autocomplete[Resource 01-result_names3]`
+- `ckanext/fork/tests/test_actions.py::TestResourceAutocomplete::test_resource_autocomplete[Private Resource 01-result_names6]`
 
-**Issue**: `AssertionError: assert ['test-dataset-01', 'test-dataset-00'] == ['test-dataset-00']`
+**Issue**: Multi-word queries were not matching correctly. For example, "Resource 01" only returned datasets with the exact phrase, missing datasets that contained individual tokens like "01".
 
 **Root Cause**:
-The test case with multi-word query "Resource 01" was failing because the matching logic only checked if the full query string appeared as a substring. This worked for simple queries like "01" but failed for multi-word queries:
+The original matching logic only checked if the full query string appeared as a substring. This worked for simple queries like "01" but failed for multi-word queries where tokens should match independently.
 
-- Query "Resource 01" should match:
-  - `test-dataset-01` (because "01" is in the dataset name)
-  - `test-dataset-00` (because it has resource "Test Resource 01")
+**Evolution of the Fix**:
 
-- But with full-string matching, `test-dataset-01` didn't match because "resource 01" is not a substring of "test-dataset-01"
+1. **Initial attempt (full string matching)**:
+   - Used `q_lower in resource['name']` for both datasets and resources
+   - Problem: "resource 01" not found in "test-dataset-01"
 
-**Initial attempt (token matching for both)**:
-First tried splitting query into tokens and matching ANY token in both datasets and resources. This was too broad - ALL datasets matched because they all have resources containing "resource".
+2. **Second attempt (ANY token matching)**:
+   - Tried matching if ANY token appeared in datasets and resources
+   - Problem: Too broad - ALL resources matched because they contain "resource"
 
-**Solution Applied**:
-Implemented **asymmetric matching logic** (actions.py:75-107):
+3. **Final solution (token-based with threshold)**:
 
-1. **Dataset-level matching** (token-based):
+**Solution Applied** (actions.py:75-134):
+
+1. **Dataset-level matching** (ANY token):
    ```python
    query_tokens = q_lower.split()
    dataset_match = any(
@@ -368,20 +371,31 @@ Implemented **asymmetric matching logic** (actions.py:75-107):
    - Allows "01" from "Resource 01" to match "test-dataset-01"
    - Allows "Private" from "Private Resource 01" to match "Private Dataset"
 
-2. **Resource-level matching** (full string):
+2. **Resource-level matching** (threshold-based):
    ```python
-   match = q_lower in resource['name'].lower() or q_lower in resource['id'].lower()
+   if len(query_tokens) == 1:
+       # Single token: use full string matching
+       match = q_lower in resource_lower or q_lower in resource_id_lower
+   else:
+       # Multi-token: count matching tokens, require at least 2
+       matching_tokens = sum(
+           1 for token in query_tokens
+           if token in resource_lower or token in resource_id_lower
+       )
+       match = matching_tokens >= 2
    ```
-   - Keeps full query string matching
-   - Prevents overly broad matches (e.g., "resource" alone matching every resource)
-   - Ensures "Resource 01" only matches resources that actually contain the full phrase
+   - Single-token queries: Full string matching (like "01" in "Test Resource 01")
+   - Multi-token queries: Require at least 2 tokens to match
+   - Prevents "resource" alone from matching all resources
+   - Allows "Test Resource 01" to match "Private Resource 01" (contains "resource" + "01" = 2/3 tokens)
 
-This approach balances:
-- **Flexibility** for dataset matching (partial word matching for user-friendly autocomplete)
-- **Precision** for resource matching (full string to avoid too many false positives)
+**Why the threshold works**:
+- For "Private Resource 01" → ["private", "resource", "01"]:
+  - "Test Resource 01": has "resource" + "01" = 2 tokens → **MATCH** ✓
+  - "Test Resource 06": has only "resource" = 1 token → **NO MATCH** ✓
 
 **Files Modified**:
-- `ckanext/fork/actions.py:56-127` - Updated resource_autocomplete function with asymmetric matching logic
+- `ckanext/fork/actions.py:56-143` - Updated resource_autocomplete function with token-based threshold matching
 
-**Result**: ✅ Test passes. Multi-word queries now correctly match datasets by individual tokens while maintaining precise resource matching.
+**Result**: ✅ Both tests pass. Multi-word queries now correctly match datasets by individual tokens while requiring multiple token matches for resources to avoid false positives.
 
