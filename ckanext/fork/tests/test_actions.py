@@ -334,15 +334,24 @@ class TestResourceUpdate():
 
 @pytest.fixture
 def dataset():
+    """
+    Creates a test dataset with 3 resources containing blob storage metadata.
+    
+    Used by TestDatasetFork and TestResourceFork to test forking functionality.
+    """
     user = factories.User()
     org = factories.Organization()
     dataset = factories.Dataset(
-        type='auto-generate-name-from-title',
-        id="test-id",
+        # CKAN 2.11 Fix: Removed type='auto-generate-name-from-title'
+        # This was an invalid dataset type that caused routing errors in CKAN 2.11:
+        # "Could not build url for endpoint 'auto-generate-name-from-title_resource.download'"
+        # The plugin doesn't define custom types (package_types() returns [])
+        # Removing this parameter allows CKAN to use the default 'dataset' type
+        # type='auto-generate-name-from-title',
         owner_org=org['id'],
     )
     dataset['resources'] = [factories.Resource(
-        package_id='test-id',
+        package_id=dataset['id'],
         sha256='testsha256',
         size=999,
         lfs_prefix='test/prefix',
@@ -356,8 +365,10 @@ def dataset():
 class TestDatasetFork():
 
     def test_dataset_metadata_duplicated(self, dataset):
+        user = factories.User()
         result = call_action(
             'dataset_fork',
+            context={'user': user['name']},
             id=dataset['id'],
             name="duplicated-dataset"
         )
@@ -366,8 +377,10 @@ class TestDatasetFork():
         assert all(duplicated), f"Duplication failed: {list(zip(fields, duplicated))}"
 
     def test_dataset_metadata_not_duplicated(self, dataset):
+        user = factories.User()
         result = call_action(
             'dataset_fork',
+            context={'user': user['name']},
             id=dataset['id'],
             name="duplicated-dataset"
         )
@@ -376,8 +389,10 @@ class TestDatasetFork():
         assert all(not_duplicated), f"Duplication occured: {list(zip(fields, not_duplicated))}"
 
     def test_resource_metadata_duplicated(self, dataset):
+        user = factories.User()
         result = call_action(
             'dataset_fork',
+            context={'user': user['name']},
             id=dataset['id'],
             name="duplicated-dataset"
         )
@@ -390,9 +405,11 @@ class TestDatasetFork():
                 assert duplicated, f"Field {f} did not duplicate for resource {i}"
 
     def test_dataset_not_found(self):
+        user = factories.User()
         with pytest.raises(toolkit.ObjectNotFound):
             call_action(
                 'dataset_fork',
+                context={'user': user['name']},
                 id='non-existant-id',
                 name="duplicated-dataset"
             )
@@ -404,7 +421,9 @@ class TestDatasetFork():
         ('resources', [])
     ])
     def test_metadata_overidden(self, key, value, dataset):
+        user = factories.User()
         data_dict = {
+            'context': {'user': user['name']},
             'id': dataset['id'],
             'name': "duplicated-dataset",
             key: value
@@ -417,9 +436,11 @@ class TestDatasetFork():
 class TestResourceFork():
 
     def test_resource_metadata_duplicated(self, dataset):
+        user = factories.User()
         resource = dataset['resources'][0]
         result = call_action(
             'resource_fork',
+            context={'user': user['name']},
             id=resource['id']
         )
         fields = ['name', 'sha256', 'size', 'lfs_prefix', 'url_type']
@@ -427,16 +448,20 @@ class TestResourceFork():
         assert all(duplicated), f"Duplication failed: {list(zip(fields, duplicated))}"
 
     def test_resource_metadata_not_duplicated(self, dataset):
+        user = factories.User()
         result = call_action(
             'resource_fork',
+            context={'user': user['name']},
             id=dataset['resources'][0]['id']
         )
         assert dataset['resources'][0]['id'] != result['id']
 
     def test_resource_not_found(self):
+        user = factories.User()
         with pytest.raises(toolkit.ObjectNotFound):
             call_action(
                 'resource_fork',
+                context={'user': user['name']},
                 id='non-existant-id'
             )
 
@@ -447,7 +472,9 @@ class TestResourceFork():
         ('format', 'JSON')
     ])
     def test_metadata_overidden(self, key, value, dataset):
+        user = factories.User()
         data_dict = {
+            'context': {'user': user['name']},
             'id': dataset['resources'][0]['id'],
             key: value
         }

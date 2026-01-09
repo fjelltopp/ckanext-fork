@@ -581,3 +581,54 @@ resource = call_action(
 - 1 failure: `test_fork_resource_update_with_new_non_fork_resource_details_via_api_call` (403 FORBIDDEN)
 - 13 errors: "Invalid id provided" in TestDatasetFork and TestResourceFork
 
+---
+
+## Fix #13: Remove invalid dataset type and add user context to fork actions
+
+**Tests Affected**:
+- `ckanext/fork/tests/test_actions.py::TestDatasetFork` (7 tests)
+- `ckanext/fork/tests/test_actions.py::TestResourceFork` (6 tests)
+
+**Issues**:
+1. **Invalid dataset type**: `werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'auto-generate-name-from-title_resource.download'`
+2. **User not found**: `ckan.logic.ValidationError: None - {'user_id': ['User not found']}`
+
+**Root Causes**:
+
+1. **Invalid dataset type in fixture**:
+   - The `dataset` fixture used `type='auto-generate-name-from-title'` which is not a valid CKAN dataset type
+   - The plugin doesn't define custom types (`package_types()` returns `[]`)
+   - CKAN 2.11 is stricter about routing and tries to build URL endpoints based on dataset type
+   - This caused routing errors when trying to generate resource download URLs
+
+2. **Missing user context in fork actions**:
+   - Tests called `dataset_fork` and `resource_fork` actions without user context
+   - These actions create new datasets/resources which trigger the activity plugin
+   - Activity plugin requires valid user context (same pattern as Fix #12)
+
+**Solution Applied**:
+
+1. **Removed invalid dataset type from fixture**:
+   - Commented out `type='auto-generate-name-from-title'` with detailed explanation
+   - Added docstring to document fixture purpose
+   - CKAN now uses the default 'dataset' type
+
+2. **Added user context to all fork action calls**:
+   - Added `context={'user': user['name']}` to all `dataset_fork` calls (5 tests)
+   - Added `context={'user': user['name']}` to all `resource_fork` calls (4 tests)
+   - Pattern matches previous user context fixes
+
+**Files Modified**:
+- `ckanext/fork/tests/test_actions.py:335-350` - Removed invalid type, added docstring to dataset fixture
+- `ckanext/fork/tests/test_actions.py:367-475` - Added user context to 9 fork action calls in TestDatasetFork and TestResourceFork
+
+**Progress**:
+- **Before**: 14 failed, 47 passed
+- **After**: 1 failed, 60 passed
+- **Improvement**: ✅ 13 tests fixed! 13 fewer failures
+
+**Result**: ✅ All TestDatasetFork and TestResourceFork tests now pass!
+
+**Remaining Issue**:
+- 1 failure: `test_fork_resource_update_with_new_non_fork_resource_details_via_api_call` (403 FORBIDDEN - API authentication issue)
+
