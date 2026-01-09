@@ -45,9 +45,6 @@ jobs:
         ckan -c test.ini db upgrade
     - name: Run tests
       run: |
-        # Run all test_resource_autocomplete tests to verify the fix works for all cases
-        pytest --ckan-ini=test.ini --disable-warnings "ckanext/fork/tests/test_actions.py::TestResourceAutocomplete::test_resource_autocomplete"
-
-        # If all pass, move to next test class:
-        # pytest --ckan-ini=test.ini --disable-warnings "ckanext/fork/tests/test_actions.py"
+        # Run all tests in test_actions.py
+        pytest --ckan-ini=test.ini --disable-warnings "ckanext/fork/tests/test_actions.py"
 
