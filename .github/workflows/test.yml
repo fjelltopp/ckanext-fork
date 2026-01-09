@@ -45,11 +45,9 @@ jobs:
         ckan -c test.ini db upgrade
     - name: Run tests
       run: |
-        # 6 failing tests - focus on one at a time
-        pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_actions.py::TestResourceAutocomplete::test_resource_autocomplete -k "Resource 01-result_names3"
-        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_actions.py::TestResourceAutocomplete::test_resource_autocomplete -k "Private Resource 01-result_names6"
-        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "None-result0"
-        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "-result1"
-        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "{good_object_id}-result2"
-        # pytest --ckan-ini=test.ini --disable-warnings ckanext/fork/tests/test_validators.py::TestValidFork::test_valid_activity_id -k "bad-object-id-result3"
+        # Run one failing test at a time
+        pytest --ckan-ini=test.ini --disable-warnings "ckanext/fork/tests/test_actions.py::TestResourceAutocomplete::test_resource_autocomplete[Private Resource 01-result_names6]"
+
+        # Next test to fix:
+        # TBD
 
