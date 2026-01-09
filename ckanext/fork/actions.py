@@ -72,6 +72,9 @@ def resource_autocomplete(context, data_dict):
         })
         datasets = search_results['results']
 
+    # Split query into tokens for dataset-level matching (allows partial matches like "01")
+    query_tokens = q_lower.split()
+
     for dataset in datasets:
 
         if not dataset['resources']:
@@ -82,6 +85,8 @@ def resource_autocomplete(context, data_dict):
 
         for resource in dataset['resources']:
             last_modified = toolkit.h.time_ago_from_timestamp(resource['last_modified'])
+            # For resources: match full query string (not individual tokens)
+            # This prevents matching all resources that contain common words like "resource"
             match = q_lower in resource['name'].lower() or q_lower in resource['id'].lower()
             if match:
                 has_matching_resource = True
@@ -95,7 +100,11 @@ def resource_autocomplete(context, data_dict):
             })
 
         organization_title = dataset.get('organization', {}).get('title', "")
-        dataset_match = q_lower in dataset['name'].lower() or q_lower in dataset['title'].lower()
+        # For datasets: match any token from query (allows "01" in "Resource 01" to match "test-dataset-01")
+        dataset_match = any(
+            token in dataset['name'].lower() or token in dataset['title'].lower()
+            for token in query_tokens
+        )
 
         # Only include dataset if it matches at dataset level OR has matching resources
         if dataset_match or has_matching_resource:

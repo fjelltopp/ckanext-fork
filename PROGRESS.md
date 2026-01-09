@@ -288,4 +288,100 @@ Successfully fixed `test_valid_activity_id` tests through a series of interconne
 5. **Activity creation (Fix #5)**: Added `package_patch` call to trigger activities (factories don't create them)
 6. **User context (Fix #6)**: Provided proper user context to avoid IP address lookup error
 
-**Final Result**: ✅ All tests passing (25 passed, 21 warnings)
+**Final Result**: ✅ test_valid_activity_id tests passing (4 tests)
+
+---
+
+## Attempted Fix #7 & #8 - REVERTED
+
+### What We Tried
+
+**Fix #7: Plugin initialization - CKAN 2.11 breaking changes**
+- Changed parent class order: `class ForkPlugin(toolkit.DefaultDatasetForm, plugins.SingletonPlugin)`
+- Fixed `return schema()` to `return schema` in create_package_schema and update_package_schema
+- Changed `package_types()` to return `['dataset']` instead of `[]`
+
+**Fix #8: Apply clean_db_with_migrations to all tests**
+- Replaced all instances of `clean_db` with `clean_db_with_migrations` across all test files
+- Updated test_actions.py, test_validators.py, test_helpers.py
+
+### Result
+❌ **REVERTED** - Changes caused more failures than fixes
+
+### Why We Reverted
+Following RULES.md principle: "Make ONE change at a time" - we attempted two related but distinct fixes together. When tests failed, it was unclear which change caused the problem.
+
+**Lesson Learned**:
+- Even when changes seem related, test each one independently
+- Revert immediately when changes make things worse
+- Return to known good state and try a different approach
+
+---
+
+## Current Status - Back to Clean State
+
+**Commit**: 94168f6 - "Fix test_valid_activity_id for CKAN 2.11 activity plugin"
+**Passing Tests**: 4 (test_valid_activity_id test cases)
+**Known Issue**: Plugin has CKAN 2.10 parent class order, which will cause issues
+
+### Next Steps
+Need to carefully investigate the root cause of the segfault and fix issues one at a time:
+1. First understand why the plugin changes caused segfault
+2. Test plugin changes in isolation
+3. Then address the clean_db_with_migrations issue separately
+4. Run tests after EACH change to verify improvement
+
+---
+
+## Fix #9: test_resource_autocomplete - Multi-word query matching
+
+**Test Affected**:
+- `ckanext/fork/tests/test_actions.py::TestResourceAutocomplete::test_resource_autocomplete[Resource 01-result_names3]`
+
+**Issue**: `AssertionError: assert ['test-dataset-01', 'test-dataset-00'] == ['test-dataset-00']`
+
+**Root Cause**:
+The test case with multi-word query "Resource 01" was failing because the matching logic only checked if the full query string appeared as a substring. This worked for simple queries like "01" but failed for multi-word queries:
+
+- Query "Resource 01" should match:
+  - `test-dataset-01` (because "01" is in the dataset name)
+  - `test-dataset-00` (because it has resource "Test Resource 01")
+
+- But with full-string matching, `test-dataset-01` didn't match because "resource 01" is not a substring of "test-dataset-01"
+
+**Initial attempt (token matching for both)**:
+First tried splitting query into tokens and matching ANY token in both datasets and resources. This was too broad - ALL datasets matched because they all have resources containing "resource".
+
+**Solution Applied**:
+Implemented **asymmetric matching logic** (actions.py:75-107):
+
+1. **Dataset-level matching** (token-based):
+   ```python
+   query_tokens = q_lower.split()
+   dataset_match = any(
+       token in dataset['name'].lower() or token in dataset['title'].lower()
+       for token in query_tokens
+   )
+   ```
+   - Splits query into individual words/tokens
+   - Matches if ANY token appears in dataset name or title
+   - Allows "01" from "Resource 01" to match "test-dataset-01"
+   - Allows "Private" from "Private Resource 01" to match "Private Dataset"
+
+2. **Resource-level matching** (full string):
+   ```python
+   match = q_lower in resource['name'].lower() or q_lower in resource['id'].lower()
+   ```
+   - Keeps full query string matching
+   - Prevents overly broad matches (e.g., "resource" alone matching every resource)
+   - Ensures "Resource 01" only matches resources that actually contain the full phrase
+
+This approach balances:
+- **Flexibility** for dataset matching (partial word matching for user-friendly autocomplete)
+- **Precision** for resource matching (full string to avoid too many false positives)
+
+**Files Modified**:
+- `ckanext/fork/actions.py:56-127` - Updated resource_autocomplete function with asymmetric matching logic
+
+**Result**: ✅ Test passes. Multi-word queries now correctly match datasets by individual tokens while maintaining precise resource matching.
+
