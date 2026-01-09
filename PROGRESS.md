@@ -632,3 +632,192 @@ resource = call_action(
 **Remaining Issue**:
 - 1 failure: `test_fork_resource_update_with_new_non_fork_resource_details_via_api_call` (403 FORBIDDEN - API authentication issue)
 
+---
+
+## Summary of Migration Progress
+
+**Final Status**: **60 passed, 1 failed (98.4% passing rate)**
+
+### Starting Point
+- 2 import errors preventing test collection
+- Unknown number of compatibility issues
+
+### Fixes Applied (13 major fixes)
+1. Mock import for Python 3.10
+2. Resource autocomplete search strategy and sorting
+3. Activity plugin setup and factory patterns
+4. Permission_labels database column migration
+5. Activity creation with factories
+6. User context for activity plugin
+7-8. (Reverted - plugin initialization attempts)
+9. Multi-word query matching in resource autocomplete
+10. Activity plugin enabled globally + test fixtures
+11. TestResourceAutocomplete fixtures + NotFound exception location
+12. User context for resource_create/update actions
+13. Invalid dataset type removed + user context for fork actions
+
+### Key CKAN 2.11 Changes Encountered
+1. **Mock library**: `import mock` → `from unittest import mock`
+2. **NotFound exception**: `toolkit.NotFound` → `logic.NotFound`
+3. **Activity plugin**:
+   - Requires `permission_labels` column in activity table
+   - Requires user context for all data modification actions
+   - Factories don't create activities (use `call_action` instead)
+4. **Dataset IDs**: Must be valid UUIDs, not arbitrary strings
+5. **Dataset types**: Invalid types cause routing errors in URL generation
+6. **Stricter validation**: Resource ID conflicts caught earlier in creation flow
+
+### Remaining Issue Analysis
+
+**Test**: `test_fork_resource_update_with_new_non_fork_resource_details_via_api_call`
+
+**What it tests**: File upload via HTTP API call that should clear fork metadata when non-fork resource details are provided
+
+**Error**: 403 FORBIDDEN with "Cannot decode JWT token: Not enough segments"
+
+**Root cause**: API authentication in CKAN 2.11 may have changed:
+- Test uses `Authorization: <apikey>` header format
+- CKAN 2.11 might require JWT tokens or different auth format
+- This is an edge case testing HTTP API file upload behavior
+
+**Options**:
+1. Skip this test for now (mark as xfail for CKAN 2.11)
+2. Investigate CKAN 2.11 API authentication changes
+3. Convert test to use `call_action` instead of HTTP API
+
+This single test failure doesn't block the extension's core functionality - all fork operations work correctly through the action layer.
+
+---
+
+## Fix #14: API Authentication for CKAN 2.11 (API Tokens vs API Keys)
+
+**Test Affected**:
+- `ckanext/fork/tests/test_actions.py::TestResourceUpdate::test_fork_resource_update_with_new_non_fork_resource_details_via_api_call`
+
+**Issue**: `assert 403 == 200` (403 FORBIDDEN) with error "Cannot decode JWT token: Not enough segments"
+
+**Root Cause**:
+CKAN 2.11 changed API authentication from simple API keys to JWT-based API tokens:
+
+1. **CKAN 2.10 and earlier**:
+   - Used API keys (simple string tokens)
+   - Stored in `user['apikey']` field
+   - Created automatically with user accounts
+   - Format: plain string token
+
+2. **CKAN 2.11**:
+   - Uses JWT-based API tokens by default
+   - Stored in `user['token']` field (not `apikey`)
+   - Must be explicitly created via `APIToken` factory
+   - Format: JWT token with signature, expiration, claims
+   - Provides better security and integration with external auth
+   - Legacy API keys still supported but not default
+
+3. **The test failure**:
+   - Test used `factories.Sysadmin()` which doesn't create an API token
+   - Tried to access `user['apikey']` which doesn't exist in CKAN 2.11
+   - Sent invalid/empty authorization header
+   - CKAN tried to decode it as JWT and failed: "Not enough segments"
+   - Resulted in 403 FORBIDDEN
+
+**Solution Applied**:
+
+Changed from:
+```python
+user = factories.Sysadmin()
+headers = {'Authorization': user['apikey']}
+```
+
+To:
+```python
+user = factories.SysadminWithToken()
+headers = {'Authorization': user['token']}
+```
+
+**What SysadminWithToken does** (from CKAN core factories.py):
+```python
+class SysadminWithToken(Sysadmin):
+    """A factory class for creating CKAN sysadmin users
+    with an associated API token.
+    """
+    password = "correct123"
+
+    @factory.post_generation
+    def token(obj, create, extracted, **kwargs):
+        if not create:
+            return
+        api_token = APIToken(user=obj["id"])
+        obj["token"] = api_token["token"]
+```
+
+**Key Points**:
+- Creates sysadmin user
+- Automatically creates APIToken via `APIToken` factory
+- Stores JWT token in `obj["token"]` field
+- Token is valid and can be decoded by CKAN 2.11's auth middleware
+
+**Testing Pattern for HTTP API Calls in CKAN 2.11**:
+```python
+# For regular users
+user = factories.UserWithToken()
+headers = {'Authorization': user['token']}
+
+# For sysadmin users
+user = factories.SysadminWithToken()
+headers = {'Authorization': user['token']}
+
+# Make authenticated request
+response = app.post(url, headers=headers, data=data)
+```
+
+**Files Modified**:
+- `ckanext/fork/tests/test_actions.py:300-383` - Changed `Sysadmin()` to `SysadminWithToken()` and `apikey` to `token`, added exhaustive documentation
+
+**Progress**:
+- **Before**: 1 failed, 60 passed (98.4%)
+- **After**: 61 passed (100% ✅)
+
+**Result**: ✅ ALL TESTS PASSING!
+
+**References**:
+- [CKAN 2.11 API Guide](https://docs.ckan.org/en/2.11/api/) - Official API authentication documentation
+- [CKAN 2.11 Changelog](https://docs.ckan.org/en/2.11/changelog.html) - Release notes mentioning JWT token support
+- [CKAN Core factories.py](https://github.com/ckan/ckan/blob/dev-v2.11/ckan/tests/factories.py) - Source code for SysadminWithToken
+- [GitHub Issue #7408](https://github.com/ckan/ckan/issues/7408) - Authentication header name discussion
+- [GitHub Issue #8637](https://github.com/ckan/ckan/issues/8637) - API token authentication issues
+
+---
+
+## Final Summary
+
+**✅ MIGRATION COMPLETE: 61/61 tests passing (100%)**
+
+**Starting Point**: 2 import errors preventing test collection  
+**Ending Point**: All 61 tests passing
+
+**Migration Journey**:
+- Fix #1: Mock import (2 errors → 0 errors)
+- Fix #2: Resource autocomplete search (1 failure fixed)
+- Fix #3-6: Activity plugin setup (4 tests fixed)
+- Fix #9: Multi-word query matching (2 tests fixed)
+- Fix #10: Activity plugin global enable (6 errors fixed)
+- Fix #11: TestResourceAutocomplete fixtures (10 issues fixed)
+- Fix #12: User context for actions (8 tests fixed)
+- Fix #13: Dataset fixture and fork actions (13 tests fixed)
+- Fix #14: API token authentication (1 test fixed - FINAL!)
+
+**Total Commits**: 6 commits with detailed documentation
+**Total Fixes**: 14 distinct issues addressed
+**Time Investment**: Methodical, one-issue-at-a-time approach following RULES.md
+
+**Key CKAN 2.11 Lessons Learned**:
+1. Mock library moved to stdlib (`unittest.mock`)
+2. Exception locations changed (`logic.NotFound`)
+3. Activity plugin requires `permission_labels` column and user context
+4. Factories don't create activities (use `call_action`)
+5. Dataset IDs must be UUIDs, types must be valid
+6. API authentication switched from API keys to JWT tokens
+7. Testing HTTP APIs requires `SysadminWithToken()` or `UserWithToken()`
+
+This extension is now fully compatible with CKAN 2.11 + Python 3.10! 🎉
+

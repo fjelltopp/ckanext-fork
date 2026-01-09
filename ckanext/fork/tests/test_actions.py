@@ -298,15 +298,81 @@ class TestResourceUpdate():
             assert resource[key] == forked_data['resource'][key]
 
     def test_fork_resource_update_with_new_non_fork_resource_details_via_api_call(self, app, forked_data):
-        user = factories.Sysadmin()
+        """
+        Test that uploading a file via HTTP API clears fork metadata.
+        
+        CKAN 2.11 API Authentication Change:
+        ====================================
+        This test was failing with 403 FORBIDDEN due to API authentication changes in CKAN 2.11.
+        
+        The Problem:
+        -----------
+        - CKAN 2.10 and earlier used API keys stored in user['apikey']
+        - CKAN 2.11 introduces JWT-based API tokens as the default authentication method
+        - Legacy apikey field no longer exists in user objects created by factories
+        - Using factories.Sysadmin()['apikey'] caused KeyError or returned invalid token
+        - Invalid token caused "Cannot decode JWT token: Not enough segments" error
+        
+        The Solution:
+        ------------
+        Use factories.SysadminWithToken() instead of factories.Sysadmin():
+        
+        OLD (CKAN 2.10):
+            user = factories.Sysadmin()
+            headers = {'Authorization': user['apikey']}
+        
+        NEW (CKAN 2.11):
+            user = factories.SysadminWithToken()
+            headers = {'Authorization': user['token']}
+        
+        What SysadminWithToken does:
+        ----------------------------
+        - Creates a sysadmin user (same as factories.Sysadmin())
+        - Automatically creates an API token via APIToken factory
+        - Stores the token in user['token'] field
+        - Token is a valid JWT that CKAN 2.11 can authenticate
+        
+        API Token vs API Key:
+        --------------------
+        - API Keys (2.10): Simple string tokens, stored directly in database
+        - API Tokens (2.11): JWT tokens with signature, expiration, and claims
+        - JWTs provide better security and integration with external auth systems
+        - Legacy API keys still supported for backward compatibility
+        
+        Testing API Calls in CKAN 2.11:
+        -------------------------------
+        For tests that make HTTP API requests with authentication:
+        1. Use factories.UserWithToken() or factories.SysadminWithToken()
+        2. Pass user['token'] in Authorization header
+        3. Token format: Just the token string, no "Bearer" prefix needed
+        
+        References:
+        ----------
+        - CKAN 2.11 API Guide: https://docs.ckan.org/en/2.11/api/
+        - CKAN 2.11 Changelog: https://docs.ckan.org/en/2.11/changelog.html
+        - CKAN Core factories.py: https://github.com/ckan/ckan/blob/dev-v2.11/ckan/tests/factories.py
+        - GitHub Issue on API tokens: https://github.com/ckan/ckan/issues/7408
+        
+        Related Fixes:
+        -------------
+        This is part of a broader pattern of CKAN 2.11 migration issues:
+        - Mock import changes (unittest.mock vs mock package)
+        - NotFound exception location (logic.NotFound vs toolkit.NotFound)
+        - Activity plugin requiring user context
+        - Dataset IDs must be valid UUIDs
+        - API authentication changes (this fix)
+        """
+        # CKAN 2.11 Fix: Use SysadminWithToken() to get a user with valid API token
+        user = factories.SysadminWithToken()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
             fork_resource=forked_data['resource']['id']
         )
 
+        # CKAN 2.11 Fix: Use user['token'] instead of user['apikey']
         headers = {
-            'Authorization': user['apikey'],
+            'Authorization': user['token'],
         }
         files = {
             'id': resource['id'],
