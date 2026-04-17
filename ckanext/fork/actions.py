@@ -99,15 +99,12 @@ def resource_autocomplete(context, data_dict):
             if len(query_tokens) == 1:
                 # Single token: use full string matching
                 match = q_lower in resource_lower or q_lower in resource_id_lower
-                matching_tokens = 1 if match else 0
             else:
-                # Multi-token: count how many tokens match
-                matching_tokens = sum(
+                # Multi-token: require at least 2 tokens to match
+                match = sum(
                     1 for token in query_tokens
                     if token in resource_lower or token in resource_id_lower
-                )
-                # Require at least 2 tokens to match
-                match = matching_tokens >= 2
+                ) >= 2
 
             if match:
                 has_matching_resource = True
