@@ -63,8 +63,12 @@ def resource_autocomplete(context, data_dict):
         datasets = _get_dataset_from_resource_uuid(context, q_lower)
 
     if not datasets:
+        # CKAN's Solr schema indexes `res_name` but NOT `res_id`, so we cannot
+        # filter by resource UUID substring via package_search. We fetch datasets
+        # and match resource names/IDs in Python. Capped at rows=10: instances
+        # with more datasets won't match resource IDs beyond the top 10.
         search_results = toolkit.get_action('package_search')(context, {
-            "q": f"res_name:{q} OR name:{q} OR title:{q}",
+            "q": "*:*",
             "rows": 10,
             "include_private": True
         })
