@@ -63,11 +63,19 @@ def resource_autocomplete(context, data_dict):
         datasets = _get_dataset_from_resource_uuid(context, q_lower)
 
     if not datasets:
-        datasets = toolkit.get_action('package_search')(context, {
-            "q": q,
+        # CKAN's Solr schema indexes `res_name` but NOT `res_id`, so we cannot
+        # filter by resource UUID substring via package_search. We fetch datasets
+        # and match resource names/IDs in Python. Capped at rows=10: instances
+        # with more datasets won't match resource IDs beyond the top 10.
+        search_results = toolkit.get_action('package_search')(context, {
+            "q": "*:*",
             "rows": 10,
             "include_private": True
-        })['results']
+        })
+        datasets = search_results['results']
+
+    # Split query into tokens for dataset-level matching (allows partial matches like "01")
+    query_tokens = q_lower.split()
 
     for dataset in datasets:
 
@@ -75,10 +83,28 @@ def resource_autocomplete(context, data_dict):
             continue
 
         resources = []
+        has_matching_resource = False
 
         for resource in dataset['resources']:
             last_modified = toolkit.h.time_ago_from_timestamp(resource['last_modified'])
-            match = q_lower in resource['name'].lower() or q_lower == resource['id']
+            # For resources: match based on number of matching tokens
+            # - Single token queries: require exact match (full string)
+            # - Multi-token queries: require at least 2 tokens to match
+            resource_lower = resource['name'].lower()
+            resource_id_lower = resource['id'].lower()
+
+            if len(query_tokens) == 1:
+                # Single token: use full string matching
+                match = q_lower in resource_lower or q_lower in resource_id_lower
+            else:
+                # Multi-token: require at least 2 tokens to match
+                match = sum(
+                    1 for token in query_tokens
+                    if token in resource_lower or token in resource_id_lower
+                ) >= 2
+
+            if match:
+                has_matching_resource = True
             resources.append({
                 'id': resource['id'],
                 'name': resource['name'],
@@ -89,15 +115,31 @@ def resource_autocomplete(context, data_dict):
             })
 
         organization_title = dataset.get('organization', {}).get('title', "")
-        match = q_lower in dataset['name'].lower() or q_lower in dataset['title'].lower()
-        pkg_list.append({
-            'id': dataset['id'],
-            'name': dataset['name'],
-            'title': dataset['title'],
-            'owner_org': organization_title,
-            'match': match,
-            'resources': resources
-        })
+        # For datasets: match any token from query (allows "01" in "Resource 01" to match "test-dataset-01")
+        dataset_match = any(
+            token in dataset['name'].lower() or token in dataset['title'].lower()
+            for token in query_tokens
+        )
+
+        # Only include dataset if it matches at dataset level OR has matching resources
+        if dataset_match or has_matching_resource:
+            pkg_list.append({
+                'id': dataset['id'],
+                'name': dataset['name'],
+                'title': dataset['title'],
+                'owner_org': organization_title,
+                'match': dataset_match,
+                'resources': resources
+            })
+
+    # Sort results: datasets with name/title matches first, then resource-only matches
+    # Within each group, maintain the order from package_search
+    for i, item in enumerate(pkg_list):
+        item['_original_index'] = i
+    pkg_list.sort(key=lambda x: (not x['match'], x['_original_index']))
+    # Remove the temporary index
+    for item in pkg_list:
+        del item['_original_index']
 
     return pkg_list
 
@@ -118,7 +160,7 @@ def _get_dataset_from_resource_uuid(context, uuid):
             {"id": resource['package_id']}
         )
         return [package]
-    except toolkit.NotFound:
+    except logic.NotFound:
         return []
 
 

@@ -45,7 +45,7 @@ def datasets(reset_db, reset_index):
     return datasets
 
 
-@pytest.mark.usefixtures('with_request_context')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins', 'with_request_context')
 class TestResourceAutocomplete():
 
     def test_resource_autocomplete_raises_error_if_no_query(self):
@@ -91,7 +91,7 @@ class TestResourceAutocomplete():
                 }
 
 
-@pytest.mark.usefixtures('clean_db')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
 class TestResourceShow():
 
     def test_synced_fork_display(self, forked_data):
@@ -104,7 +104,8 @@ class TestResourceShow():
         assert response['fork_synced']
 
     def test_unsynced_fork(self, forked_data):
-        call_action('resource_patch', id=forked_data['resource']['id'], sha256='newsha')
+        user = factories.User()
+        call_action('resource_patch', context={'user': user['name']}, id=forked_data['resource']['id'], sha256='newsha')
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -121,7 +122,8 @@ class TestResourceShow():
             fork_resource=forked_data['resource']['id'],
             fork_activity=forked_data['activity_id']
         )
-        call_action('package_patch', id=forked_data['dataset']['id'], private=True)
+        user = factories.User()
+        call_action('package_patch', context={'user': user['name']}, id=forked_data['dataset']['id'], private=True)
         user = factories.User()
         response = toolkit.get_action('resource_show')(
             {'user': user['name']},
@@ -130,7 +132,7 @@ class TestResourceShow():
         assert response['fork_synced']
 
 
-@pytest.mark.usefixtures('clean_db')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
 class TestResourceCreate():
 
     def test_not_fork_resource_create(self):
@@ -141,9 +143,11 @@ class TestResourceCreate():
         assert not resource.get('fork_synced', False)
 
     def test_fork_resource_create_with_no_activity_id(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = call_action(
             "resource_create",
+            context={'user': user['name']},
             package_id=dataset['id'],
             fork_resource=forked_data['resource']['id']
         )
@@ -153,10 +157,12 @@ class TestResourceCreate():
             assert resource[key] == forked_data['resource'][key]
 
     def test_fork_resource_create_with_activity_id(self, forked_data):
-        call_action('resource_patch', id=forked_data['resource']['id'], sha256='newsha')
+        user = factories.User()
+        call_action('resource_patch', context={'user': user['name']}, id=forked_data['resource']['id'], sha256='newsha')
         dataset = factories.Dataset()
         resource = call_action(
             "resource_create",
+            context={'user': user['name']},
             package_id=dataset['id'],
             fork_resource=forked_data['resource']['id'],
             fork_activity=forked_data['activity_id']
@@ -166,10 +172,11 @@ class TestResourceCreate():
             assert resource[key] == forked_data['resource'][key]
 
 
-@pytest.mark.usefixtures('clean_db')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
 class TestResourceUpdate():
 
     def test_fork_resource_update_with_no_activity_id(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -177,6 +184,7 @@ class TestResourceUpdate():
         )
         forked_data['resource'] = call_action(
             'resource_patch',
+            context={'user': user['name']},
             id=forked_data['resource']['id'],
             sha256='newsha'
         )
@@ -186,6 +194,7 @@ class TestResourceUpdate():
         )[0]['id']
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             fork_resource=forked_data['resource']['id']
         )
@@ -195,7 +204,8 @@ class TestResourceUpdate():
             assert resource[key] == forked_data['resource'][key]
 
     def test_fork_resource_update_with_activity_id(self, forked_data):
-        call_action('resource_patch', id=forked_data['resource']['id'], sha256='newsha')
+        user = factories.User()
+        call_action('resource_patch', context={'user': user['name']}, id=forked_data['resource']['id'], sha256='newsha')
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -203,6 +213,7 @@ class TestResourceUpdate():
         )
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             fork_resource=forked_data['resource']['id'],
             fork_activity=forked_data['activity_id']
@@ -210,6 +221,7 @@ class TestResourceUpdate():
         resource = factories.Resource(package_id=dataset['id'])
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             fork_resource=forked_data['resource']['id'],
             fork_activity=forked_data['activity_id']
@@ -219,12 +231,14 @@ class TestResourceUpdate():
             assert resource[key] == forked_data['resource'][key]
 
     def test_non_fork_resource_update_with_new_fork_resource(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
         )
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             fork_resource=forked_data['resource']['id'],
         )
@@ -234,6 +248,7 @@ class TestResourceUpdate():
             assert resource[key] == forked_data['resource'][key]
 
     def test_fork_resource_update_with_new_non_fork_resource_details(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -241,6 +256,7 @@ class TestResourceUpdate():
         )
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             url='http://link.to.some.data'
         )
@@ -248,6 +264,7 @@ class TestResourceUpdate():
         assert resource['fork_activity'] == ''
 
     def test_fork_resource_update_with_new_metadata(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -256,6 +273,7 @@ class TestResourceUpdate():
         resource['description'] = 'New description'
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             **resource
         )
         assert resource['fork_resource'] == forked_data['resource']['id']
@@ -263,12 +281,14 @@ class TestResourceUpdate():
         assert resource['description'] == 'New description'
 
     def test_non_fork_resource_update_with_new_fork_details(self, forked_data):
+        user = factories.User()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
         )
         resource = call_action(
             "resource_update",
+            context={'user': user['name']},
             id=resource['id'],
             fork_resource=forked_data['resource']['id']
         )
@@ -278,7 +298,8 @@ class TestResourceUpdate():
             assert resource[key] == forked_data['resource'][key]
 
     def test_fork_resource_update_with_new_non_fork_resource_details_via_api_call(self, app, forked_data):
-        user = factories.Sysadmin()
+        """Test that uploading a file via HTTP API clears fork metadata."""
+        user = factories.SysadminWithToken()
         dataset = factories.Dataset()
         resource = factories.Resource(
             package_id=dataset['id'],
@@ -286,7 +307,7 @@ class TestResourceUpdate():
         )
 
         headers = {
-            'Authorization': user['apikey'],
+            'Authorization': user['token'],
         }
         files = {
             'id': resource['id'],
@@ -314,29 +335,41 @@ class TestResourceUpdate():
 
 @pytest.fixture
 def dataset():
+    """
+    Creates a test dataset with 3 resources containing blob storage metadata.
+    
+    Used by TestDatasetFork and TestResourceFork to test forking functionality.
+    """
+    user = factories.User()
     org = factories.Organization()
     dataset = factories.Dataset(
-        type='auto-generate-name-from-title',
-        id="test-id",
+        # CKAN 2.11 Fix: Removed type='auto-generate-name-from-title'
+        # This was an invalid dataset type that caused routing errors in CKAN 2.11:
+        # "Could not build url for endpoint 'auto-generate-name-from-title_resource.download'"
+        # The plugin doesn't define custom types (package_types() returns [])
+        # Removing this parameter allows CKAN to use the default 'dataset' type
+        # type='auto-generate-name-from-title',
         owner_org=org['id'],
     )
     dataset['resources'] = [factories.Resource(
-        package_id='test-id',
+        package_id=dataset['id'],
         sha256='testsha256',
         size=999,
         lfs_prefix='test/prefix',
         url_type='upload'
     ) for i in range(3)]
-    call_action('package_patch', id=dataset['id'], notes="Create an activity")
+    call_action('package_patch', context={'user': user['name']}, id=dataset['id'], notes="Create an activity")
     return call_action('package_show', id=dataset['id'])
 
 
-@pytest.mark.usefixtures('clean_db', 'with_plugins')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
 class TestDatasetFork():
 
     def test_dataset_metadata_duplicated(self, dataset):
+        user = factories.User()
         result = call_action(
             'dataset_fork',
+            context={'user': user['name']},
             id=dataset['id'],
             name="duplicated-dataset"
         )
@@ -345,8 +378,10 @@ class TestDatasetFork():
         assert all(duplicated), f"Duplication failed: {list(zip(fields, duplicated))}"
 
     def test_dataset_metadata_not_duplicated(self, dataset):
+        user = factories.User()
         result = call_action(
             'dataset_fork',
+            context={'user': user['name']},
             id=dataset['id'],
             name="duplicated-dataset"
         )
@@ -355,8 +390,10 @@ class TestDatasetFork():
         assert all(not_duplicated), f"Duplication occured: {list(zip(fields, not_duplicated))}"
 
     def test_resource_metadata_duplicated(self, dataset):
+        user = factories.User()
         result = call_action(
             'dataset_fork',
+            context={'user': user['name']},
             id=dataset['id'],
             name="duplicated-dataset"
         )
@@ -369,9 +406,11 @@ class TestDatasetFork():
                 assert duplicated, f"Field {f} did not duplicate for resource {i}"
 
     def test_dataset_not_found(self):
+        user = factories.User()
         with pytest.raises(toolkit.ObjectNotFound):
             call_action(
                 'dataset_fork',
+                context={'user': user['name']},
                 id='non-existant-id',
                 name="duplicated-dataset"
             )
@@ -383,7 +422,9 @@ class TestDatasetFork():
         ('resources', [])
     ])
     def test_metadata_overidden(self, key, value, dataset):
+        user = factories.User()
         data_dict = {
+            'context': {'user': user['name']},
             'id': dataset['id'],
             'name': "duplicated-dataset",
             key: value
@@ -392,13 +433,15 @@ class TestDatasetFork():
         assert result[key] == value
 
 
-@pytest.mark.usefixtures('clean_db', 'with_plugins')
+@pytest.mark.usefixtures('clean_db_with_migrations', 'with_plugins')
 class TestResourceFork():
 
     def test_resource_metadata_duplicated(self, dataset):
+        user = factories.User()
         resource = dataset['resources'][0]
         result = call_action(
             'resource_fork',
+            context={'user': user['name']},
             id=resource['id']
         )
         fields = ['name', 'sha256', 'size', 'lfs_prefix', 'url_type']
@@ -406,16 +449,20 @@ class TestResourceFork():
         assert all(duplicated), f"Duplication failed: {list(zip(fields, duplicated))}"
 
     def test_resource_metadata_not_duplicated(self, dataset):
+        user = factories.User()
         result = call_action(
             'resource_fork',
+            context={'user': user['name']},
             id=dataset['resources'][0]['id']
         )
         assert dataset['resources'][0]['id'] != result['id']
 
     def test_resource_not_found(self):
+        user = factories.User()
         with pytest.raises(toolkit.ObjectNotFound):
             call_action(
                 'resource_fork',
+                context={'user': user['name']},
                 id='non-existant-id'
             )
 
@@ -426,7 +473,9 @@ class TestResourceFork():
         ('format', 'JSON')
     ])
     def test_metadata_overidden(self, key, value, dataset):
+        user = factories.User()
         data_dict = {
+            'context': {'user': user['name']},
             'id': dataset['resources'][0]['id'],
             key: value
         }
